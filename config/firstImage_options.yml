@@ -1,0 +1,23 @@
+log: true
+
+dir_rule:
+  base_dir: D:\NoneBot\Rift\nonebot_plugin_jmcomic\downloads
+  rule: Bd
+
+download:
+  image:
+    suffix: .jpg
+
+plugins:
+  after_init:
+    - plugin: log_topic_filter
+      kwargs:
+        whitelist: [
+          'api',
+          'album.before',
+          'photo.before',
+          'photo.after',
+          'album.after',
+          'plugin.invoke',
+          'plugin.img2pdf'
+        ]
