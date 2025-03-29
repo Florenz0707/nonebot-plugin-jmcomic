@@ -2,6 +2,12 @@ log: true
 
 dir_rule:
   base_dir: D:\NoneBot\Rift\nonebot_plugin_jmcomic\downloads
+  rule: Bd_Aid_Pindex
+
+download:
+  threading:
+    image: 25
+    photo: 10
 
 plugins:
   after_init:

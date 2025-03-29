@@ -5,6 +5,7 @@ from .MainManager import *
 # import packages from nonebot or other plugins
 from nonebot import require, logger
 from nonebot.permission import SUPERUSER
+from random import *
 
 require("nonebot_plugin_alconna")
 from nonebot_plugin_alconna import *
@@ -29,6 +30,12 @@ abstract = on_alconna(
         Args["image?", str]
     ),
     use_cmd_start=True
+)
+
+randomId = on_alconna(
+    "jm.r",
+    use_cmd_start=True,
+    permission=SUPERUSER
 )
 
 getStat = on_alconna(
@@ -98,6 +105,16 @@ async def abstract_handler(
 
         content = UniMessage.text(message)
         if with_image:
-            content = content.image(path=mm.getFilePath(number, "jpg"))
+            content += UniMessage.image(path=mm.getFilePath(number, "jpg"))
         node = CustomNode(uid=session.self_id, name="Rift", content=content)
         await UniMessage.reference(node).finish()
+
+
+@randomId.handle()
+async def randomId_handler():
+    ret = randint(100000, 1000000)
+    while not mm.isValidAlbumId(str(ret)):
+        ret += 1
+        if ret >= 1000000:
+            ret = randint(100000, 1000000)
+    await UniMessage.text(str(ret)).finish()

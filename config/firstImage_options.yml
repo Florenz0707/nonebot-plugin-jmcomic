@@ -7,6 +7,9 @@ dir_rule:
 download:
   image:
     suffix: .jpg
+  threading:
+    image: 25
+    photo: 10
 
 plugins:
   after_init:
