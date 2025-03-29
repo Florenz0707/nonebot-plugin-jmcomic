@@ -34,6 +34,9 @@ class MainManager:
         self.download_queue = []
         self.queue_limit = 5
         self.downloader = Downloader(self.conf_dir, self.client)
+        self.firstImageDownloader = jmcomic.create_option_by_file(
+            str(Path.joinpath(self.conf_dir, "firstImage_options.yml"))
+        )
         self.database = Database(self.database_dir)
 
     def getPathBySuffix(self, suffix: str) -> tuple:
@@ -133,10 +136,7 @@ class MainManager:
         if with_image:
             if not self.isFileCached(album_id, "jpg"):
                 jmcomic.JmModuleConfig.CLASS_DOWNLOADER = FirstImageFilter
-                new_downloader = jmcomic.create_option_by_file(
-                    str(Path.joinpath(self.conf_dir, "firstImage_options.yml"))
-                )
-                new_downloader.download_photo(album_id)
+                self.firstImageDownloader.download_photo(album_id)
                 jmcomic.JmModuleConfig.CLASS_DOWNLOADER = None
 
                 shutil.move(str(Path.joinpath(self.downloads_dir, "00001.jpg")),

@@ -1,11 +1,11 @@
 # ------------------------ import ------------------------
 # import packages from python
+from random import *
 from .MainManager import *
 
 # import packages from nonebot or other plugins
 from nonebot import require, logger
 from nonebot.permission import SUPERUSER
-from random import *
 
 require("nonebot_plugin_alconna")
 from nonebot_plugin_alconna import *
@@ -114,7 +114,7 @@ async def abstract_handler(
 async def randomId_handler():
     ret = randint(100000, 1000000)
     while not mm.isValidAlbumId(str(ret)):
-        ret += 1
+        ret += 13
         if ret >= 1000000:
             ret = randint(100000, 1000000)
     await UniMessage.text(str(ret)).finish()
