@@ -28,7 +28,7 @@ class MainManager:
     pics_dir: Path = Path.joinpath(cache_dir, "pics")
 
     def __init__(self):
-        self.pdf_cache_limit = 5 * 1024  # GB to MB
+        self.pdf_cache_limit = 10 * 1024  # GB to MB
         self.pic_cache_limit = 1 * 1024
         self.client = jmcomic.JmOption.default().new_jm_client()
         self.download_queue = []
@@ -55,7 +55,10 @@ class MainManager:
         return 0
 
     def getCacheList(self, suffix: str) -> list:
-        return os.listdir(self.getPathBySuffix(suffix)[0])
+        ret = os.listdir(self.getPathBySuffix(suffix)[0])
+        for i in range(len(ret)):
+            ret[i] = Path.joinpath(self.getPathBySuffix(suffix)[0], ret[i])
+        return ret
 
     def getCacheCnt(self, suffix: str) -> int:
         return len(self.getCacheList(suffix))
@@ -63,20 +66,21 @@ class MainManager:
     def getCacheSize(self, suffix: str) -> float:
         ret = 0
         for file in self.getCacheList(suffix):
-            ret += Path.joinpath(self.getPathBySuffix(suffix)[0], file).stat().st_size
+            ret += file.stat().st_size
         return Byte2MB(ret)
 
     def isCacheFull(self, suffix: str):
         return self.getCacheSize(suffix) > self.getPathBySuffix(suffix)[1]
 
     def cleanCache(self, suffix: str):
-        file_list = sorted(self.getCacheList(suffix), key=lambda x: os.path.getctime(x))
+        file_list = sorted(self.getCacheList(suffix), key=lambda x: os.path.getctime(str(x)))
         cur_size = self.getCacheSize(suffix)
         index = 0
         while cur_size > self.getPathBySuffix(suffix)[1]:
-            file_path = Path.joinpath(self.getPathBySuffix(suffix)[0], file_list[index])
+            file_path = file_list[index]
             cur_size -= Byte2MB(file_path.stat().st_size)
             os.remove(file_path)
+            logger.warning(f"Clean cache file:{file_path}")
             file_list = file_list[1:]
             index += 1
 

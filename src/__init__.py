@@ -33,23 +33,35 @@ abstract = on_alconna(
 )
 
 randomId = on_alconna(
-    "jm.r",
+    Alconna(
+        "jm.r",
+        Args["query?", str]
+    ),
     use_cmd_start=True,
     permission=SUPERUSER
 )
 
 getStat = on_alconna(
-    "jm.stat",
+    Alconna(
+        "jm.stat",
+        Args["suffix?", str]
+    ),
     use_cmd_start=True,
     permission=SUPERUSER
 )
 
 
 @getStat.handle()
-async def stat_handler():
-    ret = mm.getCacheSize("pdf")
-    cnt = mm.getCacheCnt("pdf")
-    await UniMessage.text(f"当前缓存大小为{ret:.2f} MB({(ret / 1024):.2f} GB)，"
+async def stat_handler(suffix: Match[str] = AlconnaMatch("suffix")):
+    if not suffix.available:
+        suffix = "pdf"
+    else:
+        suffix = suffix.result
+        if suffix != "jpg" and suffix != "pdf":
+            suffix = "pdf"
+    ret = mm.getCacheSize(suffix)
+    cnt = mm.getCacheCnt(suffix)
+    await UniMessage.text(f"当前缓存大小为{ret:.2f} MB，"
                           f"共{cnt}个文件。").finish()
 
 
@@ -111,10 +123,27 @@ async def abstract_handler(
 
 
 @randomId.handle()
-async def randomId_handler():
-    ret = randint(100000, 1000000)
-    while not mm.isValidAlbumId(str(ret)):
-        ret += 13
-        if ret >= 1000000:
-            ret = randint(100000, 1000000)
-    await UniMessage.text(str(ret)).finish()
+async def randomId_handler(
+        session: Uninfo,
+        query: Match[str] = AlconnaMatch("query")):
+    await UniMessage.text("正在生成...").send()
+    album_id = randint(100000, 1000000)
+    while not mm.isValidAlbumId(str(album_id)):
+        album_id += 13
+        if album_id >= 1000000:
+            album_id = randint(100000, 1000000)
+
+    if query.available and query.result == "-q":
+        info = mm.query(album_id, True)
+        message = f"ID：{info[0]}\n" \
+                  f"标题：{info[1]}\n" \
+                  f"作者：{info[2]}\n" \
+                  f"标签：{info[3]}"
+        if info[4] != 0:
+            message += f"\n预计大小：{info[4]:.2f}MB"
+
+        content = UniMessage.text(message).image(path=mm.getFilePath(album_id, "jpg"))
+        node = CustomNode(uid=session.self_id, name="Rift", content=content)
+        await UniMessage.reference(node).finish()
+    else:
+        await UniMessage.text(str(album_id)).finish()
