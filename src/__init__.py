@@ -101,6 +101,8 @@ async def abstract_handler(
         image: Match[str] = AlconnaMatch("image")):
     if not number.available:
         await UniMessage.text("看不懂！再试一次吧~").finish()
+    else:
+        await UniMessage.text("正在查询...").send()
 
     number = number.result
     with_image = (image.available and image.result == "-i")
