@@ -3,6 +3,7 @@ import sqlite3 as sq
 
 from nonebot.log import logger
 from pathlib import Path
+from .utils import *
 
 
 class Database:
@@ -31,24 +32,22 @@ class Database:
         self.cursor.close()
         self.database.close()
 
-    def insert(self, info: list):
+    def insert(self, info: dict):
         self.cursor.execute(
             "insert into jmcomic values (?, ?, ?, ?, ?)",
-            (info[0], info[1], info[2], info[3], info[4])
+            (info["album_id"], info["title"], info["author"], info["tags"], info["size"])
         )
         self.database.commit()
 
-    def query(self, album_id: str) -> list | None:
+    def query(self, album_id: str) -> None | dict:
         self.cursor.execute(
             "select * from jmcomic where album_id = ?",
             (album_id,)
         )
         ret = self.cursor.fetchone()
-        if ret is None:
-            return None
-        return list(ret)
+        return None if ret is None else getDict(ret)
 
-    def update(self, album_id: str, size: float) -> None:
+    def update_size(self, album_id: str, size: float) -> None:
         self.cursor.execute(
             "update jmcomic set size = ? where album_id = ?",
             (size, album_id)

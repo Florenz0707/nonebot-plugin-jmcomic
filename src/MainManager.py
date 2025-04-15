@@ -16,6 +16,7 @@ class Status(Enum):
     NOTFOUND = 3
     REPEAT = 4
     BAD = 5
+    RUDE = 6
 
 
 class MainManager:
@@ -50,9 +51,7 @@ class MainManager:
 
     def getFileSize(self, album_id: str, suffix: str) -> float:
         file_path: Path = self.getFilePath(album_id, suffix)
-        if file_path.exists():
-            return Byte2MB(file_path.stat().st_size)
-        return 0
+        return Byte2MB(file_path.stat().st_size) if file_path.exists() else 0
 
     def getCacheList(self, suffix: str) -> list:
         ret = os.listdir(self.getPathBySuffix(suffix)[0])
@@ -107,6 +106,8 @@ class MainManager:
             return Status.REPEAT
         if len(self.download_queue) >= self.queue_limit:
             return Status.BUSY
+        if self.database.query(album_id) is None:
+            return Status.RUDE
         if not self.isValidAlbumId(album_id):
             return Status.NOTFOUND
 
@@ -116,20 +117,20 @@ class MainManager:
     def download(self) -> None:
         while len(self.download_queue) > 0:
             album_id = self.download_queue[0]
-            self.downloader.download(album_id)
             self.download_queue = self.download_queue[1:]
+            self.downloader.download(album_id)
             if self.database.query(album_id) is None:
                 info = self.downloader.query(album_id)
-                info[4] = self.getFileSize(album_id, "pdf")
+                info["size"] = self.getFileSize(album_id, "pdf")
                 self.database.insert(info)
             else:
-                self.database.update(album_id, self.getFileSize(album_id, "pdf"))
+                self.database.update_size(album_id, self.getFileSize(album_id, "pdf"))
 
         self.cleanPics()
         if self.isCacheFull("pdf"):
             self.cleanCache("pdf")
 
-    def query(self, album_id: str, with_image=False) -> list | None:
+    def query(self, album_id: str, with_image=False) -> dict | None:
         info = self.database.query(album_id)
         if info is None:
             if not self.isValidAlbumId(album_id):
@@ -137,16 +138,15 @@ class MainManager:
             info = self.downloader.query(album_id)
             self.database.insert(info)
 
-        if with_image:
-            if not self.isFileCached(album_id, "jpg"):
-                jmcomic.JmModuleConfig.CLASS_DOWNLOADER = FirstImageFilter
-                self.firstImageDownloader.download_photo(album_id)
-                jmcomic.JmModuleConfig.CLASS_DOWNLOADER = None
+        if with_image and not self.isFileCached(album_id, "jpg"):
+            jmcomic.JmModuleConfig.CLASS_DOWNLOADER = FirstImageFilter
+            self.firstImageDownloader.download_photo(album_id)
+            jmcomic.JmModuleConfig.CLASS_DOWNLOADER = None
 
-                shutil.move(str(Path.joinpath(self.downloads_dir, "00001.jpg")),
-                            str(self.getFilePath(album_id, "jpg")))
-                if self.isCacheFull("jpg"):
-                    self.cleanCache("jpg")
+            shutil.move(str(Path.joinpath(self.downloads_dir, "00001.jpg")),
+                        str(self.getFilePath(album_id, "jpg")))
+            if self.isCacheFull("jpg"):
+                self.cleanCache("jpg")
 
         return info
 

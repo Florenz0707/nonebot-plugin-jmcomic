@@ -15,6 +15,12 @@ from nonebot_plugin_uninfo import *
 
 # ------------------------ import ------------------------
 
+help_menu = on_alconna(
+    "jm.help",
+    aliases=("jm.menu",),
+    use_cmd_start=True
+)
+
 download = on_alconna(
     Alconna(
         "jm",
@@ -51,6 +57,15 @@ getStat = on_alconna(
 )
 
 
+@help_menu.handle()
+async def help_menu_handler():
+    message = """
+1> jm id 下载车牌为id的本子
+2> jm.q id [-i] 查询车牌为id的本子信息，使用-i参数可以附带首图
+3> jm.r [-q] 随机生成可用的车牌号，使用-q参数可以直接查询"""
+    await UniMessage.text(message).finish(at_sender=True)
+
+
 @getStat.handle()
 async def stat_handler(suffix: Match[str] = AlconnaMatch("suffix")):
     if not suffix.available:
@@ -79,11 +94,13 @@ async def download_handler(number: Match[str] = AlconnaMatch("number")):
     if status == Status.BUSY:
         await UniMessage.text("当前排队的人太多啦！过会再来吧~").finish()
     if status == Status.REPEAT:
-        await UniMessage.text(f"[{number}]已存在于下载队列中！").send()
+        await UniMessage.text(f"[{number}]已存在于下载队列中！").finish()
+    if status == Status.RUDE:
+        await UniMessage.text(f"[{number}]没有经过查询！别下载一些奇奇怪怪的东西哦~").finish()
     if status == Status.GOOD:
         message = f"[{number}]已加入下载！"
-        if (info := mm.query(number))[4] != 0:
-            message += f"(预计大小：{info[4]:.2f}MB)"
+        if (info := mm.query(number))["size"] != 0:
+            message += f"(预计大小：{info['size']:.2f}MB)"
         await UniMessage.text(message).send()
         mm.download()
 
@@ -92,6 +109,21 @@ async def download_handler(number: Match[str] = AlconnaMatch("number")):
 
     await UniMessage.text(f"[{number}]发送中...({(mm.getFileSize(number, 'pdf')):.2f}MB)").send()
     await UniMessage.file(path=str(mm.getFilePath(number, 'pdf'))).finish()
+
+
+async def intro_sender(session: Uninfo, album_id: str, info: dict, with_image=False):
+    message = f"ID：{info['album_id']}\n" \
+              f"标题：{info['title']}\n" \
+              f"作者：{info['author']}\n" \
+              f"标签：{info['tags']}"
+    if info['size'] != 0:
+        message += f"\n预计大小：{info['size']:.2f}MB"
+
+    content = UniMessage.text(message)
+    if with_image:
+        content += UniMessage.image(path=mm.getFilePath(album_id, "jpg"))
+    node = CustomNode(uid=session.self_id, name="Rift", content=content)
+    await UniMessage.reference(node).finish()
 
 
 @abstract.handle()
@@ -110,18 +142,7 @@ async def abstract_handler(
     if info is None:
         await UniMessage.text(f"[{number}]找不到该编号！你再看看呢").finish()
     else:
-        message = f"ID：{info[0]}\n" \
-                  f"标题：{info[1]}\n" \
-                  f"作者：{info[2]}\n" \
-                  f"标签：{info[3]}"
-        if info[4] != 0:
-            message += f"\n预计大小：{info[4]:.2f}MB"
-
-        content = UniMessage.text(message)
-        if with_image:
-            content += UniMessage.image(path=mm.getFilePath(number, "jpg"))
-        node = CustomNode(uid=session.self_id, name="Rift", content=content)
-        await UniMessage.reference(node).finish()
+        await intro_sender(session, number, info, with_image)
 
 
 @randomId.handle()
@@ -129,23 +150,14 @@ async def randomId_handler(
         session: Uninfo,
         query: Match[str] = AlconnaMatch("query")):
     await UniMessage.text("正在生成...").send()
-    album_id = randint(100000, 1000000)
+    album_id = randint(0, 1000000)
     while not mm.isValidAlbumId(str(album_id)):
         album_id += 13
         if album_id >= 1000000:
-            album_id = randint(100000, 1000000)
+            album_id = randint(0, 1000000)
 
     if query.available and query.result == "-q":
         info = mm.query(album_id, True)
-        message = f"ID：{info[0]}\n" \
-                  f"标题：{info[1]}\n" \
-                  f"作者：{info[2]}\n" \
-                  f"标签：{info[3]}"
-        if info[4] != 0:
-            message += f"\n预计大小：{info[4]:.2f}MB"
-
-        content = UniMessage.text(message).image(path=mm.getFilePath(album_id, "jpg"))
-        node = CustomNode(uid=session.self_id, name="Rift", content=content)
-        await UniMessage.reference(node).finish()
+        await intro_sender(session, str(album_id), info, True)
     else:
         await UniMessage.text(str(album_id)).finish()
