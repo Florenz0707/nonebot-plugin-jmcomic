@@ -1,11 +1,15 @@
 import os
 import shutil
+import jmcomic
 
 from enum import Enum
+from pathlib import Path
+from nonebot.log import logger
 
-from .Downloader import *
-from .Database import *
-from .Filter import *
+from .Downloader import Downloader
+from .Client import Client
+from .Database import Database
+from .Filter import FirstImageFilter
 from .utils import *
 
 
@@ -31,10 +35,11 @@ class MainManager:
     def __init__(self):
         self.pdf_cache_limit = 10 * 1024  # GB to MB
         self.pic_cache_limit = 1 * 1024
-        self.client = jmcomic.JmOption.default().new_jm_client()
+        self.client = Client()
         self.download_queue = []
+        self.upload_queue = []
         self.queue_limit = 5
-        self.downloader = Downloader(self.conf_dir, self.client)
+        self.downloader = Downloader(self.conf_dir)
         self.firstImageDownloader = jmcomic.create_option_by_file(
             str(Path.joinpath(self.conf_dir, "firstImage_options.yml"))
         )
@@ -92,12 +97,7 @@ class MainManager:
                 shutil.rmtree(os.path.join(self.downloads_dir, target))
 
     def isValidAlbumId(self, album_id: str) -> bool:
-        try:
-            self.client.get_album_detail(album_id)
-        except jmcomic.MissingAlbumPhotoException:
-            return False
-        else:
-            return True
+        return self.client.isValidAlbumId(album_id)
 
     def add2queue(self, album_id: str) -> Status:
         if self.isFileCached(album_id, "pdf"):
@@ -120,7 +120,7 @@ class MainManager:
             self.download_queue = self.download_queue[1:]
             self.downloader.download(album_id)
             if self.database.query(album_id) is None:
-                info = self.downloader.query(album_id)
+                info = self.client.getAlbumInfo(album_id)
                 info["size"] = self.getFileSize(album_id, "pdf")
                 self.database.insert(info)
             else:
@@ -130,12 +130,33 @@ class MainManager:
         if self.isCacheFull("pdf"):
             self.cleanCache("pdf")
 
+    def getDownloadQueue(self) -> list:
+        return self.download_queue
+
+    def clearDownloadQueue(self) -> None:
+        self.download_queue.clear()
+
+    def upload(self, album_id: str) -> bool:
+        if album_id in self.upload_queue:
+            return False
+        self.upload_queue.append(album_id)
+        return True
+
+    def uploadDone(self, album_id: str) -> None:
+        self.upload_queue.remove(album_id)
+
+    def clearUploadQueue(self) -> None:
+        self.upload_queue.clear()
+
+    def getUploadQueue(self) -> list:
+        return self.upload_queue
+
     def query(self, album_id: str, with_image=False) -> dict | None:
         info = self.database.query(album_id)
         if info is None:
             if not self.isValidAlbumId(album_id):
                 return None
-            info = self.downloader.query(album_id)
+            info = self.client.getAlbumInfo(album_id)
             self.database.insert(info)
 
         if with_image and not self.isFileCached(album_id, "jpg"):

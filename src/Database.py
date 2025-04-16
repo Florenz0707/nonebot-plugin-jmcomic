@@ -32,16 +32,16 @@ class Database:
         self.cursor.close()
         self.database.close()
 
-    def insert(self, info: dict):
+    def insert(self, info: dict) -> None:
         self.cursor.execute(
             "insert into jmcomic values (?, ?, ?, ?, ?)",
-            (info["album_id"], info["title"], info["author"], info["tags"], info["size"])
+            (info["album_id"], info["title"], info["author"], info["tags"], 0.0)
         )
         self.database.commit()
 
     def query(self, album_id: str) -> None | dict:
         self.cursor.execute(
-            "select * from jmcomic where album_id = ?",
+            "select album_id, title, author, tags, size from jmcomic where album_id = ?",
             (album_id,)
         )
         ret = self.cursor.fetchone()
