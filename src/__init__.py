@@ -52,7 +52,9 @@ randomId = on_alconna(
 remoteControl = on_alconna(
     Alconna(
         "jm.m",
-        Args["option?", str]
+        Args["option?", str],
+        Args["type?", str],
+        Args["info?", str]
     ),
     use_cmd_start=True,
     permission=SUPERUSER
@@ -62,9 +64,10 @@ remoteControl = on_alconna(
 @help_menu.handle()
 async def help_menu_handler():
     message = """
-1> jm <id> 下载车牌为id的本子
-2> jm.q <id> [-i] 查询车牌为id的本子信息，使用-i参数可以附带首图
-3> jm.r [-q] 随机生成可用的车牌号，使用-q参数可以直接查询"""
+1> .jm <id> 下载车牌为id的本子
+2> .jm.q <id> [-i] 查询车牌为id的本子信息，使用-i参数可以附带首图
+3> .jm.r [-q] 随机生成可用的车牌号，使用-q参数可以直接查询
+?> .jm.m <cache/(d/u)_(s/c)/r_(s/i/d)>"""
     await UniMessage.text(message).finish(at_sender=True)
 
 
@@ -92,6 +95,8 @@ async def download_handler(
         await UniMessage.text(f"[{album_id}]已存在于下载队列中！").finish()
     if status == Status.RUDE:
         await UniMessage.text(f"[{album_id}]没有经过查询！别下载一些奇奇怪怪的东西哦~").finish()
+    if status == Status.RESTRICT:
+        await UniMessage.text(f"[{album_id}]被禁止下载！").finish()
     if status == Status.GOOD:
         message = f"[{album_id}]已加入下载！"
         if (info := mm.query(album_id))["size"] != 0:
@@ -168,15 +173,17 @@ async def randomId_handler(
 
 @remoteControl.handle()
 async def remoteControl_handler(
-        option: Match[str] = AlconnaMatch("option")):
+        option: Match[str] = AlconnaMatch("option"),
+        kind: Match[str] = AlconnaMatch("type"),
+        info: Match[str] = AlconnaMatch("info")):
     if not option.available:
         return
     option = option.result
     if option == "cache":
-        message = f"{mm.getCacheSize('pdf'):.2f}MB of {mm.getCacheCnt('pdf')} pdf files.\n" \
-                  f"{mm.getCacheSize('jpg'):.2f}MB of {mm.getCacheCnt('jpg')} jpg files."
+        message = f"当前共有{mm.getCacheCnt('pdf')}个PDF文件，共计占用空间{mm.getCacheSize('pdf'):.2f}MB。\n" \
+                  f"当前共有{mm.getCacheCnt('jpg')}个JPG文件，共计占用空间{mm.getCacheSize('jpg'):.2f}MB。"
         await UniMessage.text(message).finish()
-    if option == "download_check":
+    if option == "d_s":
         download_queue: list = mm.getDownloadQueue()
         if len(download_queue) == 0:
             await UniMessage.text("当前下载队列为空。").finish()
@@ -185,10 +192,10 @@ async def remoteControl_handler(
             for album_id in download_queue:
                 message += f"{album_id} "
             await UniMessage.text(f"当前下载队列共有{len(download_queue)}个任务：{message}").finish()
-    if option == "download_clear":
+    if option == "d_c":
         mm.clearDownloadQueue()
         await UniMessage.text("下载队列已清空。").finish()
-    if option == "upload_check":
+    if option == "u_s":
         upload_queue: list = mm.getUploadQueue()
         if len(upload_queue) == 0:
             await UniMessage.text("当前上传队列为空。").finish()
@@ -197,6 +204,29 @@ async def remoteControl_handler(
             for album_id in upload_queue:
                 message += f"{album_id} "
             await UniMessage.text(f"当前上传队列共有{len(upload_queue)}个任务：{message}").finish()
-    if option == "upload_clear":
+    if option == "u_c":
         mm.clearUploadQueue()
         await UniMessage.text("上传队列已清空。").finish()
+    if option == "r_s":
+        result = mm.getRestriction()
+        tags = "Tags："
+        album_ids = "Album_ids："
+        for _kind, _info in result:
+            if _kind == "tag":
+                tags += f"\n#{_info}"
+            else:
+                album_ids += f"\n\"{_info}\""
+        await UniMessage.text(tags).send()
+        await UniMessage.text(album_ids).send()
+    if option == "r_i" or option == "r_d":
+        if not kind.available or not info.available:
+            await UniMessage.text("参数错误。").finish()
+        kind = kind.result
+        info = info.result
+        if kind != "tag" and kind != "album_id":
+            await UniMessage.text("参数错误。").finish()
+        error = mm.insertRestriction(kind, info) if option == "r_i" else mm.deleteRestriction(kind, info)
+        if error is not None:
+            await UniMessage.text(f"发生错误：{error}").finish()
+        else:
+            await UniMessage.text(f"成功处理条目：{kind} {info}").finish()

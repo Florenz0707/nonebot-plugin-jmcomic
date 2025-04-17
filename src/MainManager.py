@@ -10,6 +10,7 @@ from .Downloader import Downloader
 from .Client import Client
 from .Database import Database
 from .Filter import FirstImageFilter
+from .Restriction import Restriction
 from .utils import *
 
 
@@ -21,6 +22,7 @@ class Status(Enum):
     REPEAT = 4
     BAD = 5
     RUDE = 6
+    RESTRICT = 7
 
 
 class MainManager:
@@ -45,23 +47,21 @@ class MainManager:
         )
         self.database = Database(self.database_dir)
 
-    def getPathBySuffix(self, suffix: str) -> tuple:
-        if suffix == "jpg":
-            return self.pics_dir, self.pic_cache_limit
-        else:
-            return self.pdf_dir, self.pdf_cache_limit
+    def getPathDir(self, suffix: str) -> Path:
+        return self.pics_dir if suffix == "jpg" else self.pdf_dir
+
+    def getCacheMaxSize(self, suffix: str) -> int:
+        return self.pic_cache_limit if suffix == "jpg" else self.pdf_cache_limit
 
     def getFilePath(self, album_id: str, suffix: str) -> Path:
-        return Path.joinpath(self.getPathBySuffix(suffix)[0], f"{album_id}.{suffix}")
+        return Path.joinpath(self.getPathDir(suffix), f"{album_id}.{suffix}")
 
     def getFileSize(self, album_id: str, suffix: str) -> float:
         file_path: Path = self.getFilePath(album_id, suffix)
         return Byte2MB(file_path.stat().st_size) if file_path.exists() else 0
 
-    def getCacheList(self, suffix: str) -> list:
-        ret = os.listdir(self.getPathBySuffix(suffix)[0])
-        for i in range(len(ret)):
-            ret[i] = Path.joinpath(self.getPathBySuffix(suffix)[0], ret[i])
+    def getCacheList(self, suffix: str) -> list[Path]:
+        ret = [Path.joinpath(self.getPathDir(suffix), path) for path in os.listdir(self.getPathDir(suffix))]
         return ret
 
     def getCacheCnt(self, suffix: str) -> int:
@@ -74,13 +74,15 @@ class MainManager:
         return Byte2MB(ret)
 
     def isCacheFull(self, suffix: str):
-        return self.getCacheSize(suffix) > self.getPathBySuffix(suffix)[1]
+        return self.getCacheSize(suffix) > self.getCacheMaxSize(suffix)
 
     def cleanCache(self, suffix: str):
+        if not self.isCacheFull(suffix):
+            return
         file_list = sorted(self.getCacheList(suffix), key=lambda x: os.path.getctime(str(x)))
         cur_size = self.getCacheSize(suffix)
         index = 0
-        while cur_size > self.getPathBySuffix(suffix)[1]:
+        while cur_size > self.getCacheMaxSize(suffix):
             file_path = file_list[index]
             cur_size -= Byte2MB(file_path.stat().st_size)
             os.remove(file_path)
@@ -100,14 +102,21 @@ class MainManager:
         return self.client.isValidAlbumId(album_id)
 
     def add2queue(self, album_id: str) -> Status:
-        if self.isFileCached(album_id, "pdf"):
-            return Status.CACHED
+        info: dict = self.database.queryAlbumInfo(album_id)
+        if info is None:
+            return Status.RUDE
+        restriction = self.database.isAlbumIdRestricted(album_id)
+        if restriction is None:
+            restriction = self.database.isTagsRestricted(info.get("tags"))
+        if restriction is not None:
+            logger.warning(f"Trigger restriction: {restriction}")
+            return Status.RESTRICT
         if album_id in self.download_queue:
             return Status.REPEAT
         if len(self.download_queue) >= self.queue_limit:
             return Status.BUSY
-        if self.database.query(album_id) is None:
-            return Status.RUDE
+        if self.isFileCached(album_id, "pdf"):
+            return Status.CACHED
         if not self.isValidAlbumId(album_id):
             return Status.NOTFOUND
 
@@ -119,16 +128,15 @@ class MainManager:
             album_id = self.download_queue[0]
             self.download_queue = self.download_queue[1:]
             self.downloader.download(album_id)
-            if self.database.query(album_id) is None:
+            if self.database.queryAlbumInfo(album_id) is None:
                 info = self.client.getAlbumInfo(album_id)
                 info["size"] = self.getFileSize(album_id, "pdf")
-                self.database.insert(info)
+                self.database.insertAlbumInfo(info)
             else:
-                self.database.update_size(album_id, self.getFileSize(album_id, "pdf"))
+                self.database.setAlbumSize(album_id, self.getFileSize(album_id, "pdf"))
 
         self.cleanPics()
-        if self.isCacheFull("pdf"):
-            self.cleanCache("pdf")
+        self.cleanCache("pdf")
 
     def getDownloadQueue(self) -> list:
         return self.download_queue
@@ -151,13 +159,22 @@ class MainManager:
     def getUploadQueue(self) -> list:
         return self.upload_queue
 
+    def insertRestriction(self, kind: str, info: str) -> None | str:
+        return self.database.insertRestriction(kind, info)
+
+    def deleteRestriction(self, kind: str, info: str) -> None | str:
+        return self.database.deleteRestriction(kind, info)
+
+    def getRestriction(self) -> list:
+        return self.database.getRestriction()
+
     def query(self, album_id: str, with_image=False) -> dict | None:
-        info = self.database.query(album_id)
+        info = self.database.queryAlbumInfo(album_id)
         if info is None:
             if not self.isValidAlbumId(album_id):
                 return None
             info = self.client.getAlbumInfo(album_id)
-            self.database.insert(info)
+            self.database.insertAlbumInfo(info)
 
         if with_image and not self.isFileCached(album_id, "jpg"):
             jmcomic.JmModuleConfig.CLASS_DOWNLOADER = FirstImageFilter
@@ -166,8 +183,7 @@ class MainManager:
 
             shutil.move(str(Path.joinpath(self.downloads_dir, "00001.jpg")),
                         str(self.getFilePath(album_id, "jpg")))
-            if self.isCacheFull("jpg"):
-                self.cleanCache("jpg")
+            self.cleanCache("jpg")
 
         return info
 
