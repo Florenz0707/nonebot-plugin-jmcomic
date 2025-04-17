@@ -12,6 +12,5 @@ def getDict(info: tuple) -> dict:
 
 
 def splitTags(tags: str) -> list:
-    tags = tags.split(sep="#")
-    ret = [tag.strip() for tag in tags]
+    ret = [tag.strip() for tag in tags.split(sep="#")]
     return ret

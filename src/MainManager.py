@@ -10,7 +10,6 @@ from .Downloader import Downloader
 from .Client import Client
 from .Database import Database
 from .Filter import FirstImageFilter
-from .Restriction import Restriction
 from .utils import *
 
 
