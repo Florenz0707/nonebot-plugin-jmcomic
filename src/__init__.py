@@ -102,16 +102,16 @@ async def download_handler(
         if (info := mm.query(album_id))["size"] != 0:
             message += f"(预计大小：{info['size']:.2f}MB)"
         await UniMessage.text(message).send()
-        mm.download()
+        await mm.download()
 
     if not mm.upload(album_id):
         await UniMessage.text(f"[{album_id}]已经在上传了！等一会吧！").finish()
     if status == Status.CACHED:
         await UniMessage.text("我早有准备！拿去吧！").send()
 
-    await UniMessage.text(f"[{album_id}]发送中...({(mm.getFileSize(album_id, 'pdf')):.2f}MB)").send()
+    await UniMessage.text(f"[{album_id}]发送中...({(mm.getFileSize(album_id, FileType.PDF)):.2f}MB)").send()
 
-    await UniMessage.file(path=str(mm.getFilePath(album_id, 'pdf'))).send()
+    await UniMessage.file(path=str(mm.getFilePath(album_id, FileType.PDF))).send()
     mm.uploadDone(album_id)
 
 
@@ -129,7 +129,7 @@ async def intro_sender(
 
     content = UniMessage.text(message)
     if with_image:
-        content += UniMessage.image(path=mm.getFilePath(album_id, "jpg"))
+        content += UniMessage.image(path=mm.getFilePath(album_id, FileType.JPG))
     node = CustomNode(uid=session.self_id, name="Rift", content=content)
     await UniMessage.reference(node).finish()
 
@@ -180,8 +180,8 @@ async def remoteControl_handler(
         return
     option = option.result
     if option == "cache":
-        message = f"当前共有{mm.getCacheCnt('pdf')}个PDF文件，共计占用空间{mm.getCacheSize('pdf'):.2f}MB。\n" \
-                  f"当前共有{mm.getCacheCnt('jpg')}个JPG文件，共计占用空间{mm.getCacheSize('jpg'):.2f}MB。"
+        message = f"当前共有{mm.getCacheCnt(FileType.PDF)}个PDF文件，共计占用空间{mm.getCacheSize(FileType.PDF):.2f}MB。\n" \
+                  f"当前共有{mm.getCacheCnt(FileType.JPG)}个JPG文件，共计占用空间{mm.getCacheSize(FileType.JPG):.2f}MB。"
         await UniMessage.text(message).finish()
     if option == "d_s":
         download_queue: list = mm.getDownloadQueue()
@@ -208,14 +208,13 @@ async def remoteControl_handler(
         mm.clearUploadQueue()
         await UniMessage.text("上传队列已清空。").finish()
     if option == "r_s":
-        result = mm.getRestriction()
+        tag_list, album_id_list = mm.getRestriction()
         tags = "Tags："
         album_ids = "Album_ids："
-        for _kind, _info in result:
-            if _kind == "tag":
-                tags += f"\n#{_info}"
-            else:
-                album_ids += f"\n\"{_info}\""
+        for tag in tag_list:
+            tags += f"\n#{tag[1]}"
+        for album_id in album_id_list:
+            album_ids += f"\n\"{album_id[1]}\""
         await UniMessage.text(tags).send()
         await UniMessage.text(album_ids).send()
     if option == "r_i" or option == "r_d":

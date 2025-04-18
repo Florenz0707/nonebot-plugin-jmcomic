@@ -8,6 +8,12 @@ from .utils import *
 
 class Database:
     def __init__(self, database_dir: Path):
+        """
+        create connection with jmcomic.db on database_dir.
+        table structure:
+            album_info: album_id, title, author, tags, size
+            restriction: type, info
+        """
         self.base_dir: Path = database_dir
         self.file_path: Path = Path.joinpath(self.base_dir, "jmcomic.db")
         self.database = sq.connect(self.file_path)
@@ -51,6 +57,11 @@ class Database:
         self.database.close()
 
     def insertAlbumInfo(self, info: dict) -> None:
+        """
+        insert info into table album_info,
+        as there must be query in front of download,
+        default size as 0.0
+        """
         self.cursor.execute(
             "insert into album_info values (?, ?, ?, ?, ?)",
             (info["album_id"], info["title"], info["author"], info["tags"], 0.0)
@@ -73,6 +84,10 @@ class Database:
         self.database.commit()
 
     def isAlbumIdRestricted(self, album_id: str) -> str | None:
+        """
+        if album_id is restricted, return album_id;
+        otherwise return None
+        """
         self.cursor.execute(
             "select * from restriction where type = ? and info = ?",
             ("album_id", album_id)
@@ -80,6 +95,10 @@ class Database:
         return None if self.cursor.fetchone() is None else album_id
 
     def isTagsRestricted(self, tags: str) -> str | None:
+        """
+        if one of tag in tags is restricted, return the tag;
+        otherwise return None
+        """
         tags = splitTags(tags)
         self.cursor.execute(
             "select info from restriction where type = ?",
@@ -92,6 +111,11 @@ class Database:
         return None
 
     def insertRestriction(self, kind: str, info: str) -> None | str:
+        """
+        insert restriction,
+        if success, return None;
+        otherwise return error information
+        """
         try:
             self.cursor.execute(
                 "insert into restriction values (?, ?)",
@@ -104,6 +128,11 @@ class Database:
             return None
 
     def deleteRestriction(self, kind: str, info: str) -> None | str:
+        """
+        delete restriction,
+        if success, return None;
+        otherwise return error information
+        """
         try:
             self.cursor.execute(
                 "delete from restriction where type = ? and info = ?",
@@ -115,8 +144,12 @@ class Database:
         else:
             return None
 
-    def getRestriction(self) -> list:
-        self.cursor.execute(
-            "select type, info from restriction order by type"
-        )
-        return self.cursor.fetchall()
+    def getRestriction(self) -> tuple[list, list]:
+        """
+        return (tag_list, album_id_list)
+        """
+        self.cursor.execute("select type, info from restriction where type = 'tag' order by info")
+        tag_list = self.cursor.fetchall()
+        self.cursor.execute("select type, info from restriction where type = 'album_id' order by info")
+        album_id_list = self.cursor.fetchall()
+        return tag_list, album_id_list
