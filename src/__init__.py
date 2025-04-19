@@ -99,7 +99,7 @@ async def download_handler(
         await UniMessage.text(f"[{album_id}]被禁止下载！").finish()
     if status == Status.GOOD:
         message = f"[{album_id}]已加入下载！"
-        if (info := mm.query(album_id))["size"] != 0:
+        if (info := await mm.query(album_id)).get('size') != 0:
             message += f"(预计大小：{info['size']:.2f}MB)"
         await UniMessage.text(message).send()
         await mm.download()
@@ -146,7 +146,7 @@ async def abstract_handler(
 
     number = number.result
     with_image = (image.available and image.result == "-i")
-    info = mm.query(number, with_image)
+    info = await mm.query(number, with_image)
     if info is None:
         await UniMessage.text(f"[{number}]找不到该编号！你再看看呢").finish()
     else:
@@ -165,7 +165,7 @@ async def randomId_handler(
             album_id = randint(0, 1000000)
 
     if query.available and query.result == "-q":
-        info = mm.query(album_id, True)
+        info = await mm.query(album_id, True)
         await intro_sender(session, str(album_id), info, True)
     else:
         await UniMessage.text(str(album_id)).finish()

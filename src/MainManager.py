@@ -170,7 +170,7 @@ class MainManager:
     def getRestriction(self) -> tuple[list, list]:
         return self.database.getRestriction()
 
-    def query(self, album_id: str, with_image=False) -> dict | None:
+    async def query(self, album_id: str, with_image=False) -> dict | None:
         info = self.database.queryAlbumInfo(album_id)
         if info is None:
             if not self.isValidAlbumId(album_id):

@@ -63,8 +63,8 @@ class Database:
         default size as 0.0
         """
         self.cursor.execute(
-            "insert into album_info values (?, ?, ?, ?, ?)",
-            (info["album_id"], info["title"], info["author"], info["tags"], 0.0)
+            "insert into album_info(album_id, title, author, tags) values (?, ?, ?, ?)",
+            (info["album_id"], info["title"], info["author"], info["tags"])
         )
         self.database.commit()
 
@@ -96,10 +96,10 @@ class Database:
 
     def isTagsRestricted(self, tags: str) -> str | None:
         """
-        if one of tag in tags is restricted, return the tag;
+        if one of the tags is restricted, return the tag;
         otherwise return None
         """
-        tags = splitTags(tags)
+        tags: list = splitTags(tags)
         self.cursor.execute(
             "select info from restriction where type = ?",
             ("tag",)
