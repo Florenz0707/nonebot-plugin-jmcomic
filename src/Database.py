@@ -68,7 +68,7 @@ class Database:
         )
         self.database.commit()
 
-    def queryAlbumInfo(self, album_id: str) -> None | dict:
+    def getAlbumInfo(self, album_id: str) -> None | dict:
         self.cursor.execute(
             "select album_id, title, author, tags, size from album_info where album_id = ?",
             (album_id,)

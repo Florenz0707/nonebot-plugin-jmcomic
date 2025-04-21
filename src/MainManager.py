@@ -1,8 +1,6 @@
-import threading
 import os
 import shutil
 import jmcomic
-import asyncio
 
 from enum import Enum
 from pathlib import Path
@@ -51,7 +49,6 @@ class MainManager:
         self.firstImageDownloader = jmcomic.create_option_by_file(
             os.path.join(str(self.conf_dir), "firstImage_options.yml"))
         self.database = Database(self.database_dir)
-        self.lock = threading.Lock()
 
     def getPathDir(self, file_type: FileType) -> Path:
         return self.pics_dir if file_type == FileType.JPG else self.pdf_dir
@@ -109,7 +106,7 @@ class MainManager:
         return self.client.isValidAlbumId(album_id)
 
     def add2queue(self, album_id: str) -> Status:
-        info: dict = self.database.queryAlbumInfo(album_id)
+        info: dict = self.database.getAlbumInfo(album_id)
         if info is None:
             return Status.RUDE
         restriction = self.database.isAlbumIdRestricted(album_id)
@@ -170,8 +167,8 @@ class MainManager:
     def getRestriction(self) -> tuple[list, list]:
         return self.database.getRestriction()
 
-    async def query(self, album_id: str, with_image=False) -> dict | None:
-        info = self.database.queryAlbumInfo(album_id)
+    async def getAlbumInfo(self, album_id: str, with_image=False) -> dict | None:
+        info = self.database.getAlbumInfo(album_id)
         if info is None:
             if not self.isValidAlbumId(album_id):
                 return None
