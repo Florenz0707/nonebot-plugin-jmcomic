@@ -13,9 +13,9 @@ class Downloader:
     def download(self, album_id: str) -> None:
         try:
             self.option.download_album(album_id)
-        except jmcomic.RequestRetryAllFailException as e:
-            logger.warning(e)
-        except jmcomic.JmcomicException as e:
-            raise e
+        except jmcomic.RequestRetryAllFailException:
+            pass
+        except jmcomic.JmcomicException as error:
+            raise error
         else:
             pass

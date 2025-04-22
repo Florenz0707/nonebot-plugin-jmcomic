@@ -13,6 +13,8 @@ class Database:
         table structure:
             album_info: album_id, title, author, tags, size
             restriction: type, info
+            user_freq: user_id, date, use_cnt
+            user_limit: user_id, daily_limit
         """
         self.base_dir: Path = database_dir
         self.file_path: Path = Path.joinpath(self.base_dir, "jmcomic.db")
@@ -33,8 +35,6 @@ class Database:
             self.database.commit()
         except sqlite3.Error as error:
             logger.error(f"Error occurs when create table album_info: {error}")
-        else:
-            pass
 
         try:
             command = """
@@ -49,8 +49,33 @@ class Database:
             self.database.commit()
         except sqlite3.Error as error:
             logger.warning(f"Error occurs when create table restriction: {error}")
-        else:
-            pass
+
+        try:
+            command = """
+            create table if not exists user_freq (
+                user_id     text,
+                date        text,
+                use_cnt     int     default 0,
+                primary key (user_id)
+            )
+            """
+            self.cursor.execute(command)
+            self.database.commit()
+        except sqlite3.Error as error:
+            logger.warning(f"Error occurs when create table user_freq: {error}")
+
+        try:
+            command = """
+            create table if not exists user_limit (
+                user_id     text,
+                daily_limit int,
+                primary key (user_id)
+            )
+            """
+            self.cursor.execute(command)
+            self.database.commit()
+        except sqlite3.Error as error:
+            logger.warning(f"Error occurs when create table user_limit: {error}")
 
     def __del__(self):
         self.cursor.close()
@@ -153,3 +178,78 @@ class Database:
         self.cursor.execute("select type, info from restriction where type = 'album_id' order by info")
         album_id_list = self.cursor.fetchall()
         return tag_list, album_id_list
+
+    def increaseUserFreq(self, user_id: str, date: str) -> None:
+        self.cursor.execute(
+            "select use_cnt from user_freq where user_id = ? and date = ?",
+            (user_id, date)
+        )
+        if self.cursor.fetchone() is None:
+            self.cursor.execute(
+                "insert into user_freq(user_id, date, use_cnt) values (?, ?, ?)",
+                (user_id, date, 0)
+            )
+            self.database.commit()
+
+        self.cursor.execute(
+            "update user_freq set use_cnt = use_cnt + 1 where user_id = ? and date = ?",
+            (user_id, date)
+        )
+        self.database.commit()
+
+    def getUserFreq(self, user_id: str, date: str) -> int:
+        self.cursor.execute(
+            "select use_cnt from user_freq where user_id = ? and date = ?",
+            (user_id, date)
+        )
+        return 0 if self.cursor.fetchone() is None else self.cursor.fetchone()[0]
+
+    def getAllFreq(self, date: str) -> list:
+        self.cursor.execute(
+            "select user_id, use_cnt from user_freq where date = ? order by use_cnt desc",
+            (date,)
+        )
+        return self.cursor.fetchall()
+
+    def getMostFreq(self, date: str) -> None | tuple:
+        if (info := self.getAllFreq(date)) is None:
+            return None
+        return info[0]
+
+    def setUserLimit(self, user_id: str, limit: int) -> None:
+        self.cursor.execute(
+            "select daily_limit from user_limit where user_id = ?",
+            (user_id,)
+        )
+        if self.cursor.fetchone() is None:
+            self.cursor.execute(
+                "insert into user_limit(user_id, daily_limit) values (?, ?)",
+                (user_id, limit)
+            )
+        else:
+            self.cursor.execute(
+                "update user_limit set daily_limit = ? where user_id = ?",
+                (limit, user_id)
+            )
+        self.database.commit()
+
+    def getUserLimit(self, user_id: str) -> None | int:
+        self.cursor.execute(
+            "select daily_limit from user_limit where user_id = ?",
+            (user_id,)
+        )
+        ret = self.cursor.fetchone()
+        return None if ret is None else ret[0]
+
+    def getAllLimit(self) -> list:
+        self.cursor.execute(
+            "select user_id, daily_limit from user_limit"
+        )
+        return self.cursor.fetchall()
+
+    def deleteUserLimit(self, user_id: str) -> None:
+        self.cursor.execute(
+            "delete from user_limit where user_id = ?",
+            (user_id,)
+        )
+        self.database.commit()

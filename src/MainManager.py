@@ -1,5 +1,6 @@
 import os
 import shutil
+import asyncio
 import jmcomic
 
 from enum import Enum
@@ -30,7 +31,7 @@ class FileType(Enum):
 
 
 class MainManager:
-    base_dir: Path = Path(r"D:\NoneBot\Rift\nonebot_plugin_jmcomic")
+    base_dir: Path = Path("D:\\NoneBot\\Rift\\nonebot_plugin_jmcomic")
     conf_dir: Path = Path.joinpath(base_dir, "config")
     downloads_dir: Path = Path.joinpath(base_dir, "downloads")
     cache_dir: Path = Path.joinpath(downloads_dir, "cache")
@@ -47,7 +48,8 @@ class MainManager:
         self.queue_limit = 5
         self.downloader = Downloader(self.conf_dir)
         self.firstImageDownloader = jmcomic.create_option_by_file(
-            os.path.join(str(self.conf_dir), "firstImage_options.yml"))
+            os.path.join(str(self.conf_dir), "firstImage_options.yml")
+        )
         self.database = Database(self.database_dir)
 
     def getPathDir(self, file_type: FileType) -> Path:
@@ -85,22 +87,25 @@ class MainManager:
             return
         file_list = sorted(self.getCacheList(file_type), key=lambda x: os.path.getctime(str(x)))
         cur_size = self.getCacheSize(file_type)
-        index = 0
         while cur_size > self.getCacheMaxSize(file_type):
-            file_path = file_list[index]
+            file_path = file_list[0]
             cur_size -= Byte2MB(file_path.stat().st_size)
             os.remove(file_path)
             logger.warning(f"Clean cache file:{file_path}")
             file_list = file_list[1:]
-            index += 1
 
     def isFileCached(self, album_id: str, file_type: FileType) -> bool:
         return self.getFilePath(album_id, file_type).exists()
 
     def cleanPics(self):
         for target in os.listdir(self.downloads_dir):
-            if target != "cache":
-                shutil.rmtree(os.path.join(self.downloads_dir, target))
+            if target == "cache":
+                continue
+            path = os.path.join(self.downloads_dir, target)
+            if os.path.isdir(path):
+                shutil.rmtree(path)
+            else:
+                os.remove(path)
 
     def isValidAlbumId(self, album_id: str) -> bool:
         return self.client.isValidAlbumId(album_id)
@@ -167,6 +172,30 @@ class MainManager:
     def getRestriction(self) -> tuple[list, list]:
         return self.database.getRestriction()
 
+    def increaseUserFreq(self, user_id: str, date: str) -> None:
+        self.database.increaseUserFreq(user_id, date)
+
+    def getUserFreq(self, user_id: str, date: str) -> int:
+        return self.database.getUserFreq(user_id, date)
+
+    def getAllFreq(self, date: str) -> list:
+        return self.database.getAllFreq(date)
+
+    def getMostFreq(self, date: str) -> tuple:
+        return self.database.getMostFreq(date)
+
+    def setUserLimit(self, user_id: str, limit: int) -> None:
+        self.database.setUserLimit(user_id, limit)
+
+    def getUserLimit(self, user_id: str) -> None | int:
+        return self.database.getUserLimit(user_id)
+
+    def getAllLimit(self) -> list:
+        return self.database.getAllLimit()
+
+    def deleteUserLimit(self, user_id: str) -> None:
+        self.database.deleteUserLimit(user_id)
+
     async def getAlbumInfo(self, album_id: str, with_image=False) -> dict | None:
         info = self.database.getAlbumInfo(album_id)
         if info is None:
@@ -180,9 +209,10 @@ class MainManager:
             self.firstImageDownloader.download_photo(album_id)
             jmcomic.JmModuleConfig.CLASS_DOWNLOADER = None
 
-            shutil.move(str(Path.joinpath(self.downloads_dir, "00001.jpg")),
+            shutil.move(os.path.join(self.downloads_dir, f"{album_id}\\00001.jpg"),
                         str(self.getFilePath(album_id, FileType.JPG)))
             self.cleanCache(FileType.JPG)
+            self.cleanPics()
 
         return info
 

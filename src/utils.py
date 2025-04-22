@@ -1,4 +1,4 @@
-from nonebot.log import logger
+from datetime import datetime
 
 
 def Byte2MB(size: int) -> float:
@@ -14,3 +14,11 @@ def getDict(info: tuple) -> dict:
 def splitTags(tags: str) -> list:
     ret = [tag.strip() for tag in tags.split(sep="#")]
     return ret
+
+
+def currentDate() -> str:
+    return str(datetime.now().date())
+
+
+if __name__ == "__main__":
+    print(currentDate())

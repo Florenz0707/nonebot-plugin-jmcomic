@@ -4,9 +4,8 @@ from random import *
 
 import nonebot.adapters.onebot.v11.exception
 # import packages from nonebot or other plugins
-from nonebot import require
+from nonebot import require, get_bot
 from nonebot.permission import SUPERUSER
-from nonebot.adapters.onebot.v11.exception import *
 
 from .GroupFileManager import *
 from .MainManager import *
@@ -55,8 +54,8 @@ remoteControl = on_alconna(
     Alconna(
         "jm.m",
         Args["option?", str],
-        Args["type?", str],
-        Args["info?", str]
+        Args["arg1?", str],
+        Args["arg2?", str]
     ),
     use_cmd_start=True,
     permission=SUPERUSER
@@ -86,8 +85,19 @@ async def help_menu_handler():
 1> .jm <id> 下载车牌为id的本子
 2> .jm.q <id> [-i] 查询车牌为id的本子信息，使用-i参数可以附带首图
 3> .jm.r [-q] 随机生成可用的车牌号，使用-q参数可以直接查询
-?> .jm.m <cache/(d/u)_(s/c)/r_(s/i/d)>"""
+?> .jm.m <cache/f_s/(d/u)_(s/c)/(r/l)_(s/i/d)>"""
     await UniMessage.text(message).finish(at_sender=True)
+
+
+async def userFreqCheck(user_id: str):
+    date = currentDate()
+    daily_limit = mm.getUserLimit(user_id)
+    mm.increaseUserFreq(user_id, date)
+    if daily_limit is not None:
+        use_cnt = mm.getUserFreq(user_id, date)
+        if use_cnt > daily_limit:
+            await UniMessage.text(" 不准用😡😡😡").finish(at_sender=True)
+        await UniMessage.text(f" 你今天已经使用{use_cnt}/{daily_limit}次了哦~").send(at_sender=True)
 
 
 @download.handle()
@@ -97,6 +107,8 @@ async def download_handler(
         album_id: Match[str] = AlconnaMatch("album_id")):
     if not album_id.available:
         await UniMessage.text("看不懂！再试一次吧~").finish()
+
+    await userFreqCheck(session.user.id)
 
     album_id = album_id.result
     if session.scene.type == SceneType.GROUP:
@@ -139,6 +151,7 @@ async def intro_sender(
         album_id: str,
         info: dict,
         uid: str,
+        bot: Bot,
         with_image=False):
     message = f"ID：{info.get('album_id')}\n" \
               f"标题：{info.get('title')}\n" \
@@ -162,6 +175,7 @@ async def intro_sender(
 
 @abstract.handle()
 async def abstract_handler(
+        bot: Bot,
         session: Uninfo,
         album_id: Match[str] = AlconnaMatch("album_id"),
         image: Match[str] = AlconnaMatch("image")):
@@ -170,17 +184,20 @@ async def abstract_handler(
     else:
         await UniMessage.text("正在查询...").send()
 
+    await userFreqCheck(session.user.id)
+
     album_id = album_id.result
     with_image = (image.available and image.result == "-i")
     info = await mm.getAlbumInfo(album_id, with_image)
     if info is None:
         await UniMessage.text(f"[{album_id}]找不到该编号！你再看看呢").finish()
     else:
-        await intro_sender(album_id, info, session.self_id, with_image)
+        await intro_sender(album_id, info, session.self_id, bot, with_image)
 
 
 @randomId.handle()
 async def randomId_handler(
+        bot: Bot,
         session: Uninfo,
         query: Match[str] = AlconnaMatch("query")):
     await UniMessage.text("正在生成...").send()
@@ -192,7 +209,7 @@ async def randomId_handler(
 
     if query.available and query.result == "-q":
         info = await mm.getAlbumInfo(album_id, True)
-        await intro_sender(str(album_id), info, session.self_id, True)
+        await intro_sender(str(album_id), info, session.self_id, bot, True)
     else:
         await UniMessage.text(str(album_id)).finish()
 
@@ -200,15 +217,17 @@ async def randomId_handler(
 @remoteControl.handle()
 async def remoteControl_handler(
         option: Match[str] = AlconnaMatch("option"),
-        kind: Match[str] = AlconnaMatch("type"),
-        info: Match[str] = AlconnaMatch("info")):
+        arg1: Match[str] = AlconnaMatch("arg1"),
+        arg2: Match[str] = AlconnaMatch("arg2")):
     if not option.available:
         return
+
     option = option.result
     if option == "cache":
         message = f"当前共有{mm.getCacheCnt(FileType.PDF)}个PDF文件，共计占用空间{mm.getCacheSize(FileType.PDF):.2f}MB。\n" \
                   f"当前共有{mm.getCacheCnt(FileType.JPG)}个JPG文件，共计占用空间{mm.getCacheSize(FileType.JPG):.2f}MB。"
         await UniMessage.text(message).finish()
+
     if option == "d_s":
         download_queue: list = mm.getDownloadQueue()
         if len(download_queue) == 0:
@@ -218,9 +237,11 @@ async def remoteControl_handler(
             for album_id in download_queue:
                 message += f"{album_id} "
             await UniMessage.text(f"当前下载队列共有{len(download_queue)}个任务：'{message}'").finish()
+
     if option == "d_c":
         mm.clearDownloadQueue()
         await UniMessage.text("下载队列已清空。").finish()
+
     if option == "u_s":
         upload_queue: list = mm.getUploadQueue()
         if len(upload_queue) == 0:
@@ -230,9 +251,11 @@ async def remoteControl_handler(
             for album_id in upload_queue:
                 message += f"{album_id} "
             await UniMessage.text(f"当前上传队列共有{len(upload_queue)}个任务：'{message}'").finish()
+
     if option == "u_c":
         mm.clearUploadQueue()
         await UniMessage.text("上传队列已清空。").finish()
+
     if option == "r_s":
         tag_list, album_id_list = mm.getRestriction()
         tags = "Tags："
@@ -243,11 +266,12 @@ async def remoteControl_handler(
             album_ids += f"\n\"{album_id[1]}\""
         await UniMessage.text(tags).send()
         await UniMessage.text(album_ids).send()
+
     if option == "r_i" or option == "r_d":
-        if not kind.available or not info.available:
+        if not (arg1.available and arg2.available):
             await UniMessage.text("参数错误。").finish()
-        kind = kind.result
-        info = info.result
+        kind = arg1.result
+        info = arg2.result
         if kind != "tag" and kind != "album_id":
             await UniMessage.text("参数错误。").finish()
         error = mm.insertRestriction(kind, info) if option == "r_i" else mm.deleteRestriction(kind, info)
@@ -255,3 +279,42 @@ async def remoteControl_handler(
             await UniMessage.text(f"发生错误：{error}").finish()
         else:
             await UniMessage.text(f"成功处理条目：{kind} {info}").finish()
+
+    if option == "f_s":
+        date = currentDate()
+        info = mm.getAllFreq(date)
+        message = f"以下是{date}的使用记录："
+        for user_id, use_cnt in info:
+            message += f"\n{user_id}: {use_cnt}"
+        await UniMessage.text(message).finish()
+
+    if option == "l_s":
+        if arg1.available:
+            user_id = arg1.result
+            if (daily_limit := mm.getUserLimit(user_id)) is None:
+                await UniMessage.text("暂无数据信息。").finish()
+            else:
+                await UniMessage.text(f"{user_id}: {daily_limit}").finish()
+        else:
+            info = mm.getAllLimit()
+            if len(info) == 0:
+                await UniMessage.text("暂无数据信息。").finish()
+            message = f"共有{len(info)}条数据："
+            for user_id, daily_limit in info:
+                message += f"\n{user_id}: {daily_limit}"
+            await UniMessage.text(message).finish()
+
+    if option == "l_i":
+        if not (arg1.available and arg2.available):
+            await UniMessage.text("参数错误。").finish()
+        user_id = arg1.result
+        daily_limit = arg2.result
+        mm.setUserLimit(user_id, daily_limit)
+        await UniMessage.text(f"[{user_id}: {daily_limit}] 已加入限制。").finish()
+
+    if option == "l_d":
+        if not arg1.available:
+            await UniMessage.text("参数错误。").finish()
+        user_id = arg1.result
+        mm.deleteUserLimit(user_id)
+        await UniMessage.text(f"[{user_id}] 已解除限制。").finish()
