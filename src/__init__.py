@@ -2,9 +2,9 @@
 # import packages from python
 from random import *
 
-import nonebot.adapters.onebot.v11.exception
+import nonebot.adapters.onebot.v12.exception
 # import packages from nonebot or other plugins
-from nonebot import require, get_bot
+from nonebot import require
 from nonebot.permission import SUPERUSER
 
 from .GroupFileManager import *
@@ -47,7 +47,7 @@ randomId = on_alconna(
         Args["query?", str]
     ),
     use_cmd_start=True,
-    permission=SUPERUSER
+    permission=SUPERUSER | ADMIN()
 )
 
 remoteControl = on_alconna(
@@ -69,14 +69,8 @@ test = on_alconna(
 
 
 @test.handle()
-async def test_handler(bot: Bot):
-    group_files: dict = await bot.call_api("get_group_root_files", group_id="271480569")
-    info = [(file.get("file_name"), file.get("modify_time")) for file in group_files.get("files")]
-    info.sort(key=lambda x: int(x[1]))
-    message = ""
-    for name, time in info:
-        message += f"{name} | {time}\n"
-    await UniMessage.text(f"{message} Count: {len(info)}").finish()
+async def test_handler():
+    await UniMessage.text(str(mm.isValidAlbumId(33157))).finish()
 
 
 @help_menu.handle()
@@ -85,7 +79,7 @@ async def help_menu_handler():
 1> .jm <id> 下载车牌为id的本子
 2> .jm.q <id> [-i] 查询车牌为id的本子信息，使用-i参数可以附带首图
 3> .jm.r [-q] 随机生成可用的车牌号，使用-q参数可以直接查询
-?> .jm.m <cache/f_s/(d/u)_(s/c)/(r/l)_(s/i/d)>"""
+?> .jm.m <cache/proxy/f_s/(d/u)_(s/c)/(r/l)_(s/i/d)>"""
     await UniMessage.text(message).finish(at_sender=True)
 
 
@@ -123,26 +117,30 @@ async def download_handler(
         await UniMessage.text(f"[{album_id}]找不到该编号！你再看看呢").finish()
     if status == Status.BUSY:
         await UniMessage.text("当前排队的人太多啦！过会再来吧~").finish()
-    if status == Status.REPEAT:
+    if status == Status.DOWNLOADING:
         await UniMessage.text(f"[{album_id}]已存在于下载队列中！").finish()
+    if status == Status.UPLOADING:
+        await UniMessage.text(f"[{album_id}]已经在上传了！等一会吧！").finish()
     if status == Status.RUDE:
         await UniMessage.text(f"[{album_id}]没有经过查询！别下载一些奇奇怪怪的东西哦~").finish()
     if status == Status.RESTRICT:
         await UniMessage.text(f"[{album_id}]被禁止下载！").finish()
+    if status == Status.CACHED:
+        await UniMessage.text("我早有准备！拿去吧！").send()
     if status == Status.GOOD:
         message = f"[{album_id}]已加入下载！"
         if (info := await mm.getAlbumInfo(album_id)).get('size') != 0:
             message += f"(预计大小：{info['size']:.2f}MB)"
         await UniMessage.text(message).send()
-        await mm.download()
+        try:
+            await mm.download(album_id)
+        except jmcomic.JmcomicException as error:
+            await UniMessage.text(f"发生错误：{error}").finish()
+        else:
+            mm.downloadDone(album_id)
 
-    if not mm.upload(album_id):
-        await UniMessage.text(f"[{album_id}]已经在上传了！等一会吧！").finish()
-    if status == Status.CACHED:
-        await UniMessage.text("我早有准备！拿去吧！").send()
-
+    mm.upload(album_id)
     await UniMessage.text(f"[{album_id}]发送中...({(mm.getFileSize(album_id, FileType.PDF)):.2f}MB)").send()
-
     await UniMessage.file(path=str(mm.getFilePath(album_id, FileType.PDF))).send()
     mm.uploadDone(album_id)
 
@@ -151,12 +149,13 @@ async def intro_sender(
         album_id: str,
         info: dict,
         uid: str,
-        bot: Bot,
         with_image=False):
     message = f"ID：{info.get('album_id')}\n" \
               f"标题：{info.get('title')}\n" \
               f"作者：{info.get('author')}\n" \
               f"标签：{info.get('tags')}"
+    if info.get('page') != 0:
+        message += f"\n页数：{info.get('page')}"
     if info.get('size') != 0:
         message += f"\n预计大小：{info.get('size'):.2f}MB"
 
@@ -175,41 +174,45 @@ async def intro_sender(
 
 @abstract.handle()
 async def abstract_handler(
-        bot: Bot,
         session: Uninfo,
         album_id: Match[str] = AlconnaMatch("album_id"),
         image: Match[str] = AlconnaMatch("image")):
     if not album_id.available:
         await UniMessage.text("看不懂！再试一次吧~").finish()
-    else:
-        await UniMessage.text("正在查询...").send()
 
     await userFreqCheck(session.user.id)
 
     album_id = album_id.result
     with_image = (image.available and image.result == "-i")
+    await UniMessage.text("正在查询...").send()
     info = await mm.getAlbumInfo(album_id, with_image)
     if info is None:
         await UniMessage.text(f"[{album_id}]找不到该编号！你再看看呢").finish()
     else:
-        await intro_sender(album_id, info, session.self_id, bot, with_image)
+        await intro_sender(album_id, info, session.self_id, with_image)
 
 
 @randomId.handle()
 async def randomId_handler(
-        bot: Bot,
         session: Uninfo,
         query: Match[str] = AlconnaMatch("query")):
+    await userFreqCheck(session.user.id)
     await UniMessage.text("正在生成...").send()
-    album_id = randint(0, 1000000)
+
+    retry = 0
+    left_bound = 100000
+    right_bound = 1200000
+    album_id = randint(left_bound, right_bound)
     while not mm.isValidAlbumId(str(album_id)):
         album_id += 13
-        if album_id >= 1000000:
-            album_id = randint(0, 1000000)
+        retry += 1
+        if retry > 9:
+            retry = 0
+            album_id = randint(left_bound, right_bound)
 
     if query.available and query.result == "-q":
         info = await mm.getAlbumInfo(album_id, True)
-        await intro_sender(str(album_id), info, session.self_id, bot, True)
+        await intro_sender(str(album_id), info, session.self_id, True)
     else:
         await UniMessage.text(str(album_id)).finish()
 
@@ -228,6 +231,11 @@ async def remoteControl_handler(
                   f"当前共有{mm.getCacheCnt(FileType.JPG)}个JPG文件，共计占用空间{mm.getCacheSize(FileType.JPG):.2f}MB。"
         await UniMessage.text(message).finish()
 
+    if option == "proxy":
+        mm.switchProxy()
+        proxy = "开启" if mm.getProxy() else "关闭"
+        await UniMessage.text(f"已{proxy}代理。").finish()
+
     if option == "d_s":
         download_queue: list = mm.getDownloadQueue()
         if len(download_queue) == 0:
@@ -235,8 +243,8 @@ async def remoteControl_handler(
         else:
             message = ""
             for album_id in download_queue:
-                message += f"{album_id} "
-            await UniMessage.text(f"当前下载队列共有{len(download_queue)}个任务：'{message}'").finish()
+                message += f"[{album_id}] "
+            await UniMessage.text(f"当前下载队列共有{len(download_queue)}个任务：{message}").finish()
 
     if option == "d_c":
         mm.clearDownloadQueue()
@@ -249,8 +257,8 @@ async def remoteControl_handler(
         else:
             message = ""
             for album_id in upload_queue:
-                message += f"{album_id} "
-            await UniMessage.text(f"当前上传队列共有{len(upload_queue)}个任务：'{message}'").finish()
+                message += f"[{album_id}] "
+            await UniMessage.text(f"当前上传队列共有{len(upload_queue)}个任务：{message}").finish()
 
     if option == "u_c":
         mm.clearUploadQueue()
@@ -283,7 +291,7 @@ async def remoteControl_handler(
     if option == "f_s":
         date = currentDate()
         info = mm.getAllFreq(date)
-        message = f"以下是{date}的使用记录："
+        message = f"{date2words(date)}的使用记录："
         for user_id, use_cnt in info:
             message += f"\n{user_id}: {use_cnt}"
         await UniMessage.text(message).finish()

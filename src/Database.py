@@ -23,10 +23,11 @@ class Database:
         try:
             command = """
             create table if not exists album_info (
-                album_id    text    not null,
+                album_id    text,
                 title       text,
                 author      text,
                 tags        text,
+                page        int     default 0,
                 size        float   default 0.0,
                 primary key (album_id)
             );
@@ -56,7 +57,7 @@ class Database:
                 user_id     text,
                 date        text,
                 use_cnt     int     default 0,
-                primary key (user_id)
+                primary key (user_id, date)
             )
             """
             self.cursor.execute(command)
@@ -88,14 +89,15 @@ class Database:
         default size as 0.0
         """
         self.cursor.execute(
-            "insert into album_info(album_id, title, author, tags) values (?, ?, ?, ?)",
-            (info["album_id"], info["title"], info["author"], info["tags"])
+            "insert into album_info(album_id, title, author, tags, page) values (?, ?, ?, ?, ?)",
+            (info.get("album_id"), info.get("title"), info.get("author"),
+             info.get("tags"), info.get("page"))
         )
         self.database.commit()
 
     def getAlbumInfo(self, album_id: str) -> None | dict:
         self.cursor.execute(
-            "select album_id, title, author, tags, size from album_info where album_id = ?",
+            "select album_id, title, author, tags, page, size from album_info where album_id = ?",
             (album_id,)
         )
         ret = self.cursor.fetchone()
@@ -202,7 +204,11 @@ class Database:
             "select use_cnt from user_freq where user_id = ? and date = ?",
             (user_id, date)
         )
-        return 0 if self.cursor.fetchone() is None else self.cursor.fetchone()[0]
+        ret = self.cursor.fetchone()
+        if ret is None:
+            return 0
+        else:
+            return ret[0]
 
     def getAllFreq(self, date: str) -> list:
         self.cursor.execute(

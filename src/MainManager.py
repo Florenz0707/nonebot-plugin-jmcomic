@@ -15,14 +15,15 @@ from .utils import *
 
 
 class Status(Enum):
-    GOOD = 0
-    CACHED = 1
-    BUSY = 2
-    NOTFOUND = 3
-    REPEAT = 4
-    BAD = 5
-    RUDE = 6
-    RESTRICT = 7
+    GOOD = 1
+    BAD = 2
+    RUDE = 3
+    NOTFOUND = 4
+    RESTRICT = 5
+    BUSY = 6
+    CACHED = 7
+    UPLOADING = 8
+    DOWNLOADING = 9
 
 
 class FileType(Enum):
@@ -42,11 +43,11 @@ class MainManager:
     def __init__(self):
         self.pdf_cache_limit = 10 * 1024  # GB to MB
         self.pic_cache_limit = 1 * 1024
-        self.client = Client()
         self.download_queue = []
         self.upload_queue = []
         self.queue_limit = 5
         self.downloader = Downloader(self.conf_dir)
+        self.client = Client(self.conf_dir)
         self.firstImageDownloader = jmcomic.create_option_by_file(
             os.path.join(str(self.conf_dir), "firstImage_options.yml")
         )
@@ -110,6 +111,12 @@ class MainManager:
     def isValidAlbumId(self, album_id: str) -> bool:
         return self.client.isValidAlbumId(album_id)
 
+    def switchProxy(self) -> None:
+        self.client.switchProxy()
+
+    def getProxy(self) -> bool:
+        return self.client.getProxy()
+
     def add2queue(self, album_id: str) -> Status:
         info: dict = self.database.getAlbumInfo(album_id)
         if info is None:
@@ -118,29 +125,35 @@ class MainManager:
         if restriction is None:
             restriction = self.database.isTagsRestricted(info.get("tags"))
         if restriction is not None:
-            logger.warning(f"Trigger restriction: {restriction}")
             return Status.RESTRICT
-        if album_id in self.download_queue:
-            return Status.REPEAT
-        if len(self.download_queue) >= self.queue_limit:
-            return Status.BUSY
         if self.isFileCached(album_id, FileType.PDF):
             return Status.CACHED
+        if self.isDownloading(album_id):
+            return Status.DOWNLOADING
+        if len(self.download_queue) >= self.queue_limit:
+            return Status.BUSY
+        if self.isUploading(album_id):
+            return Status.UPLOADING
         if not self.isValidAlbumId(album_id):
             return Status.NOTFOUND
 
         self.download_queue.append(album_id)
         return Status.GOOD
 
-    async def download(self) -> None:
-        while len(self.download_queue) > 0:
-            album_id = self.download_queue[0]
-            self.download_queue.remove(album_id)
-            self.downloader.download(album_id)
-            self.database.setAlbumSize(album_id, self.getFileSize(album_id, FileType.PDF))
-
-        self.cleanPics()
+    async def download(self, album_id: str) -> None:
+        await asyncio.to_thread(self.downloader.download, album_id)
+        self.database.setAlbumSize(album_id, self.getFileSize(album_id, FileType.PDF))
+        self.download_queue.remove(album_id)
+        if len(self.download_queue) == 0:
+            self.cleanPics()
         self.cleanCache(FileType.PDF)
+
+    def isDownloading(self, album_id: str) -> bool:
+        return album_id in self.download_queue
+
+    def downloadDone(self, album_id: str) -> None:
+        if self.isDownloading(album_id):
+            self.download_queue.remove(album_id)
 
     def getDownloadQueue(self) -> list:
         return self.download_queue
@@ -148,14 +161,16 @@ class MainManager:
     def clearDownloadQueue(self) -> None:
         self.download_queue.clear()
 
-    def upload(self, album_id: str) -> bool:
-        if album_id in self.upload_queue:
-            return False
-        self.upload_queue.append(album_id)
-        return True
+    def isUploading(self, album_id: str) -> bool:
+        return album_id in self.upload_queue
+
+    def upload(self, album_id: str) -> None:
+        if not self.isUploading(album_id):
+            self.upload_queue.append(album_id)
 
     def uploadDone(self, album_id: str) -> None:
-        self.upload_queue.remove(album_id)
+        if self.isUploading(album_id):
+            self.upload_queue.remove(album_id)
 
     def clearUploadQueue(self) -> None:
         self.upload_queue.clear()
@@ -212,7 +227,6 @@ class MainManager:
             shutil.move(os.path.join(self.downloads_dir, f"{album_id}\\00001.jpg"),
                         str(self.getFilePath(album_id, FileType.JPG)))
             self.cleanCache(FileType.JPG)
-            self.cleanPics()
 
         return info
 
