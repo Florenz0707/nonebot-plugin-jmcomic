@@ -12,7 +12,11 @@ def getDict(info: tuple) -> dict:
 
 
 def splitTags(tags: str) -> list:
-    ret = [tag.strip() for tag in tags.split(sep="#")]
+    ret = []
+    for tag in tags.split(sep="#"):
+        tag = tag.strip()
+        if tag != "":
+            ret.append(tag)
     return ret
 
 

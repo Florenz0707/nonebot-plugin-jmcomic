@@ -15,6 +15,8 @@ class Downloader:
             self.option.download_album(album_id)
         except jmcomic.RequestRetryAllFailException:
             pass
+        except jmcomic.PartialDownloadFailedException:
+            pass
         except jmcomic.JmcomicException as error:
             raise error
         else:

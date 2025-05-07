@@ -78,6 +78,20 @@ class Database:
         except sqlite3.Error as error:
             logger.warning(f"Error occurs when create table user_limit: {error}")
 
+        try:
+            command = """
+            create table if not exists user_xp (
+                user_id     text,
+                tag         text,
+                cnt         int default 0,
+                primary key (user_id, tag)
+            )
+            """
+            self.cursor.execute(command)
+            self.database.commit()
+        except sqlite3.Error as error:
+            logger.warning(f"Error occurs when create table user_xp: {error}")
+
     def __del__(self):
         self.cursor.close()
         self.database.close()
@@ -259,3 +273,28 @@ class Database:
             (user_id,)
         )
         self.database.commit()
+
+    def increaseUserXP(self, user_id: str, tag: str) -> None:
+        self.cursor.execute(
+            "select cnt from user_xp where user_id = ? and tag = ?",
+            (user_id, tag)
+        )
+        if self.cursor.fetchone() is None:
+            self.cursor.execute(
+                "insert into user_xp(user_id, tag, cnt) values (?, ?, ?)",
+                (user_id, tag, 0)
+            )
+            self.database.commit()
+
+        self.cursor.execute(
+            "update user_xp set cnt = cnt + 1 where user_id = ? and tag = ?",
+            (user_id, tag)
+        )
+        self.database.commit()
+
+    def getUserXP(self, user_id: str) -> list:
+        self.cursor.execute(
+            "select tag, cnt from user_xp where user_id = ? order by cnt desc",
+            (user_id,)
+        )
+        return self.cursor.fetchall()

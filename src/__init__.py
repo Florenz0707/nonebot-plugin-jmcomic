@@ -50,6 +50,15 @@ randomId = on_alconna(
     permission=SUPERUSER | ADMIN()
 )
 
+queryXP = on_alconna(
+    Alconna(
+        "jm.xp",
+        Option("-u", Args["user_id?", str]),
+        Option("-l", Args["length?", int])
+    ),
+    use_cmd_start=True
+)
+
 remoteControl = on_alconna(
     Alconna(
         "jm.m",
@@ -70,7 +79,12 @@ test = on_alconna(
 
 @test.handle()
 async def test_handler():
-    await UniMessage.text(str(mm.isValidAlbumId(33157))).finish()
+    mm.increaseUserXP("2559815776", "纯爱")
+    ret = mm.getUserXP("2559815776")
+    message = ""
+    for cnt in range(len(ret)):
+        message += f"\n{cnt + 1}. #{ret[cnt][0]} -> {ret[cnt][1]}"
+    await UniMessage.text(message).finish(at_sender=True)
 
 
 @help_menu.handle()
@@ -79,6 +93,7 @@ async def help_menu_handler():
 1> .jm <id> 下载车牌为id的本子
 2> .jm.q <id> [-i] 查询车牌为id的本子信息，使用-i参数可以附带首图
 3> .jm.r [-q] 随机生成可用的车牌号，使用-q参数可以直接查询
+4> .jm.xp [-u QQ] [-l 长度] 查询指定用户的XP，默认查询自己，默认长度为5，最大为20
 ?> .jm.m <cache/proxy/f_s/(d/u)_(s/c)/(r/l)_(s/i/d)>"""
     await UniMessage.text(message).finish(at_sender=True)
 
@@ -110,6 +125,7 @@ async def download_handler(
         if await group_file_manager.albumExist(album_id):
             await UniMessage.text(f"[{album_id}]群文件里已经有了哦~去找找看吧！").finish()
 
+    mm.increaseUserXPByAlbumID(session.user.id, album_id)
     status = mm.add2queue(album_id)
     if status == Status.BAD:
         await UniMessage.text("出现了奇怪的错误！").finish()
@@ -135,8 +151,10 @@ async def download_handler(
         try:
             await mm.download(album_id)
         except jmcomic.JmcomicException as error:
-            await UniMessage.text(f"发生错误：{error}").finish()
+            await UniMessage.text(f"[{album_id}]发生错误：{str(error).strip()}").finish()
         else:
+            pass
+        finally:
             mm.downloadDone(album_id)
 
     mm.upload(album_id)
@@ -217,6 +235,25 @@ async def randomId_handler(
         await UniMessage.text(str(album_id)).finish()
 
 
+@queryXP.handle()
+async def queryXP_handler(
+        session: Uninfo,
+        user_id: Query[str] = Query("user_id"),
+        length: Query[int] = Query("length", 5)):
+    if user_id.available:
+        user_id = user_id.result
+    else:
+        user_id = session.user.id
+    length = min(length.result, 20)
+    info = mm.getUserXP(user_id, length)
+    if info is None:
+        await UniMessage.text(f"{user_id}目前还没有XP记录！").finish()
+    message = f"这是{user_id}的XP记录！\n（此处展示前{length}条）"
+    for cnt in range(len(info)):
+        message += f"\n{cnt + 1}. #{info[cnt][0]} -> {info[cnt][1]}"
+    await UniMessage.text(message).finish()
+
+
 @remoteControl.handle()
 async def remoteControl_handler(
         option: Match[str] = AlconnaMatch("option"),
@@ -271,7 +308,7 @@ async def remoteControl_handler(
         for tag in tag_list:
             tags += f"\n#{tag[1]}"
         for album_id in album_id_list:
-            album_ids += f"\n\"{album_id[1]}\""
+            album_ids += f"\n[{album_id[1]}]"
         await UniMessage.text(tags).send()
         await UniMessage.text(album_ids).send()
 

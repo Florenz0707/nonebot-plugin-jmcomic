@@ -211,6 +211,25 @@ class MainManager:
     def deleteUserLimit(self, user_id: str) -> None:
         self.database.deleteUserLimit(user_id)
 
+    def increaseUserXPByTags(self, user_id: str, tags: str) -> None:
+        tag_list = splitTags(tags)
+        for tag in tag_list:
+            self.database.increaseUserXP(user_id, tag)
+
+    def increaseUserXPByAlbumID(self, user_id: str, album_id: str) -> None:
+        info = self.database.getAlbumInfo(album_id)
+        if info is None:
+            return
+        self.increaseUserXPByTags(user_id, info.get('tags'))
+
+    def getUserXP(self, user_id: str, length: int) -> None | list:
+        ret = self.database.getUserXP(user_id)
+        if len(ret) == 0:
+            return None
+        if len(ret) > length:
+            ret = ret[:length]
+        return ret
+
     async def getAlbumInfo(self, album_id: str, with_image=False) -> dict | None:
         info = self.database.getAlbumInfo(album_id)
         if info is None:
