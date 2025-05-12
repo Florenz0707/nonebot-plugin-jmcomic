@@ -117,14 +117,14 @@ class MainManager:
     def getProxy(self) -> bool:
         return self.client.getProxy()
 
-    def add2queue(self, album_id: str) -> Status:
+    def add2queue(self, album_id: str, force=False) -> Status:
         info: dict = self.database.getAlbumInfo(album_id)
         if info is None:
             return Status.RUDE
         restriction = self.database.isAlbumIdRestricted(album_id)
         if restriction is None:
             restriction = self.database.isTagsRestricted(info.get("tags"))
-        if restriction is not None:
+        if restriction is not None and not force:
             return Status.RESTRICT
         if self.isFileCached(album_id, FileType.PDF):
             return Status.CACHED

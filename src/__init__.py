@@ -5,7 +5,7 @@ from random import *
 import nonebot.adapters.onebot.v12.exception
 # import packages from nonebot or other plugins
 from nonebot import require
-from nonebot.permission import SUPERUSER
+from nonebot.permission import Permission, SUPERUSER, SuperUser, Event
 
 from .GroupFileManager import *
 from .MainManager import *
@@ -26,8 +26,9 @@ help_menu = on_alconna(
 
 download = on_alconna(
     Alconna(
-        "jm",
-        Args["album_id?", str]
+        "jm.d",
+        Args["album_id?", str],
+        Args["force?", str]
     ),
     use_cmd_start=True,
 )
@@ -62,35 +63,78 @@ queryXP = on_alconna(
 remoteControl = on_alconna(
     Alconna(
         "jm.m",
-        Args["option?", str],
-        Args["arg1?", str],
-        Args["arg2?", str]
+        Subcommand("cache"),
+        Subcommand("proxy"),
+        Subcommand("f_s"),
+        Subcommand("d_s"),
+        Subcommand("d_c"),
+        Subcommand("u_s"),
+        Subcommand("u_c"),
+        Subcommand("r_s"),
+        Subcommand(
+            "r_i",
+            Args["type?", str],
+            Args["info", str]
+        ),
+        Subcommand(
+            "r_d",
+            Args["type?", str],
+            Args["info", str]
+        ),
+        Subcommand(
+            "l_s",
+            Args["user_id?", str]
+        ),
+        Subcommand(
+            "l_i",
+            Args["user_id?", str],
+            Args["limit", int]
+        ),
+        Subcommand(
+            "l_d",
+            Args["user_id?", str]
+        )
     ),
     use_cmd_start=True,
     permission=SUPERUSER
 )
 
+remoteControl_cache = remoteControl.dispatch("cache")
+remoteControl_proxy = remoteControl.dispatch("proxy")
+remoteControl_fs = remoteControl.dispatch("f_s")
+remoteControl_ds = remoteControl.dispatch("d_s")
+remoteControl_dc = remoteControl.dispatch("d_c")
+remoteControl_us = remoteControl.dispatch("u_s")
+remoteControl_uc = remoteControl.dispatch("u_c")
+remoteControl_rs = remoteControl.dispatch("r_s")
+remoteControl_ri = remoteControl.dispatch("r_i")
+remoteControl_rd = remoteControl.dispatch("r_d")
+remoteControl_ls = remoteControl.dispatch("l_s")
+remoteControl_li = remoteControl.dispatch("l_i")
+remoteControl_ld = remoteControl.dispatch("l_d")
+
 test = on_alconna(
-    "test",
+    Alconna(
+        "test",
+        Args["args?", str]
+    ),
     use_cmd_start=True,
     permission=SUPERUSER
 )
 
 
 @test.handle()
-async def test_handler():
-    mm.increaseUserXP("2559815776", "纯爱")
-    ret = mm.getUserXP("2559815776")
-    message = ""
-    for cnt in range(len(ret)):
-        message += f"\n{cnt + 1}. #{ret[cnt][0]} -> {ret[cnt][1]}"
-    await UniMessage.text(message).finish(at_sender=True)
+async def test_handler(
+        arg: Match[str] = AlconnaMatch("args")):
+    if arg.available:
+        arg = arg.result
+        await UniMessage.text(arg).finish()
 
 
 @help_menu.handle()
 async def help_menu_handler():
     message = """
-1> .jm <id> 下载车牌为id的本子
+1> .jm.d <id> 下载车牌为id的本子
 2> .jm.q <id> [-i] 查询车牌为id的本子信息，使用-i参数可以附带首图
 3> .jm.r [-q] 随机生成可用的车牌号，使用-q参数可以直接查询
 4> .jm.xp [-u QQ] [-l 长度] 查询指定用户的XP，默认查询自己，默认长度为5，最大为20
@@ -112,8 +156,10 @@ async def userFreqCheck(user_id: str):
 @download.handle()
 async def download_handler(
         bot: Bot,
+        event: Event,
         session: Uninfo,
-        album_id: Match[str] = AlconnaMatch("album_id")):
+        album_id: Match[str] = AlconnaMatch("album_id"),
+        force: Match[str] = AlconnaMatch("force")):
     if not album_id.available:
         await UniMessage.text("看不懂！再试一次吧~").finish()
 
@@ -125,8 +171,9 @@ async def download_handler(
         if await group_file_manager.albumExist(album_id):
             await UniMessage.text(f"[{album_id}]群文件里已经有了哦~去找找看吧！").finish()
 
-    mm.increaseUserXPByAlbumID(session.user.id, album_id)
-    status = mm.add2queue(album_id)
+    perm = Permission(SuperUser())
+    forced: bool = (force.available and force.result == "-f" and await perm(bot, event))
+    status = mm.add2queue(album_id, forced)
     if status == Status.BAD:
         await UniMessage.text("出现了奇怪的错误！").finish()
     if status == Status.NOTFOUND:
@@ -144,6 +191,7 @@ async def download_handler(
     if status == Status.CACHED:
         await UniMessage.text("我早有准备！拿去吧！").send()
     if status == Status.GOOD:
+        mm.increaseUserXPByAlbumID(session.user.id, album_id)
         message = f"[{album_id}]已加入下载！"
         if (info := await mm.getAlbumInfo(album_id)).get('size') != 0:
             message += f"(预计大小：{info['size']:.2f}MB)"
@@ -159,8 +207,14 @@ async def download_handler(
 
     mm.upload(album_id)
     await UniMessage.text(f"[{album_id}]发送中...({(mm.getFileSize(album_id, FileType.PDF)):.2f}MB)").send()
-    await UniMessage.file(path=str(mm.getFilePath(album_id, FileType.PDF))).send()
-    mm.uploadDone(album_id)
+    try:
+        await UniMessage.file(path=str(mm.getFilePath(album_id, FileType.PDF))).send()
+    except nonebot.adapters.onebot.v11.exception.NetworkError as error:
+        logger.error(str(error))
+    else:
+        pass
+    finally:
+        mm.uploadDone(album_id)
 
 
 async def intro_sender(
@@ -254,112 +308,148 @@ async def queryXP_handler(
     await UniMessage.text(message).finish()
 
 
-@remoteControl.handle()
-async def remoteControl_handler(
-        option: Match[str] = AlconnaMatch("option"),
-        arg1: Match[str] = AlconnaMatch("arg1"),
-        arg2: Match[str] = AlconnaMatch("arg2")):
-    if not option.available:
-        return
+@remoteControl_cache.handle()
+async def remoteControl_cache_handler():
+    message = f"当前共有{mm.getCacheCnt(FileType.PDF)}个PDF文件，共计占用空间{mm.getCacheSize(FileType.PDF):.2f}MB。\n" \
+              f"当前共有{mm.getCacheCnt(FileType.JPG)}个JPG文件，共计占用空间{mm.getCacheSize(FileType.JPG):.2f}MB。"
+    await UniMessage.text(message).finish()
 
-    option = option.result
-    if option == "cache":
-        message = f"当前共有{mm.getCacheCnt(FileType.PDF)}个PDF文件，共计占用空间{mm.getCacheSize(FileType.PDF):.2f}MB。\n" \
-                  f"当前共有{mm.getCacheCnt(FileType.JPG)}个JPG文件，共计占用空间{mm.getCacheSize(FileType.JPG):.2f}MB。"
+
+@remoteControl_proxy.handle()
+async def remoteControl_proxy_handler():
+    mm.switchProxy()
+    proxy = "开启" if mm.getProxy() else "关闭"
+    await UniMessage.text(f"已{proxy}代理。").finish()
+
+
+@remoteControl_fs.handle()
+async def remoteControl_fs_handler():
+    date = currentDate()
+    info = mm.getAllFreq(date)
+    message = f"{date2words(date)}的使用记录："
+    for user_id, use_cnt in info:
+        message += f"\n{user_id}: {use_cnt}"
+    await UniMessage.text(message).finish()
+
+
+@remoteControl_ds.handle()
+async def remoteControl_ds_handler():
+    download_queue: list = mm.getDownloadQueue()
+    if len(download_queue) == 0:
+        await UniMessage.text("当前下载队列为空。").finish()
+    else:
+        message = ""
+        for album_id in download_queue:
+            message += f"[{album_id}] "
+        await UniMessage.text(f"当前下载队列共有{len(download_queue)}个任务：{message}").finish()
+
+
+@remoteControl_dc.handle()
+async def remoteControl_dc_handler():
+    mm.clearDownloadQueue()
+    await UniMessage.text("下载队列已清空。").finish()
+
+
+@remoteControl_us.handle()
+async def remoteControl_us_handler():
+    upload_queue: list = mm.getUploadQueue()
+    if len(upload_queue) == 0:
+        await UniMessage.text("当前上传队列为空。").finish()
+    else:
+        message = ""
+        for album_id in upload_queue:
+            message += f"[{album_id}] "
+        await UniMessage.text(f"当前上传队列共有{len(upload_queue)}个任务：{message}").finish()
+
+
+@remoteControl_uc.handle()
+async def remoteControl_uc_handler():
+    mm.clearUploadQueue()
+    await UniMessage.text("上传队列已清空。").finish()
+
+
+@remoteControl_rs.handle()
+async def remoteControl_rs_handler():
+    tag_list, album_id_list = mm.getRestriction()
+    tags = "Tags："
+    album_ids = "Album_ids："
+    for tag in tag_list:
+        tags += f"\n#{tag[1]}"
+    for album_id in album_id_list:
+        album_ids += f"\n[{album_id[1]}]"
+    await UniMessage.text(tags).send()
+    await UniMessage.text(album_ids).send()
+
+
+@remoteControl_ri.handle()
+async def remoteControl_ri_handler(
+        kind: Match[str] = AlconnaMatch("type"),
+        info: Match[str] = AlconnaMatch("info")):
+    if not (kind.available and info.available):
+        await UniMessage.text("参数错误。").finish()
+    kind = kind.result
+    info = info.result
+    if kind != "tag" and kind != "album_id":
+        await UniMessage.text("参数错误。").finish()
+    error = mm.insertRestriction(kind, info)
+    if error is not None:
+        await UniMessage.text(f"发生错误：{error}").finish()
+    else:
+        await UniMessage.text(f"成功处理条目：{kind} {info}").finish()
+
+
+@remoteControl_rd.handle()
+async def remoteControl_rd_handler(
+        kind: Match[str] = AlconnaMatch("type"),
+        info: Match[str] = AlconnaMatch("info")):
+    if not (kind.available and info.available):
+        await UniMessage.text("参数错误。").finish()
+    kind = kind.result
+    info = info.result
+    if kind != "tag" and kind != "album_id":
+        await UniMessage.text("参数错误。").finish()
+    error = mm.deleteRestriction(kind, info)
+    if error is not None:
+        await UniMessage.text(f"发生错误：{error}").finish()
+    else:
+        await UniMessage.text(f"成功处理条目：{kind} {info}").finish()
+
+
+@remoteControl_ls.handle()
+async def remoteControl_ls_handler(
+        user_id: Match[str] = AlconnaMatch("user_id")):
+    if user_id.available:
+        user_id = user_id.result
+        if (daily_limit := mm.getUserLimit(user_id)) is None:
+            await UniMessage.text("暂无数据信息。").finish()
+        else:
+            await UniMessage.text(f"{user_id}: {daily_limit}").finish()
+    else:
+        info = mm.getAllLimit()
+        if len(info) == 0:
+            await UniMessage.text("暂无数据信息。").finish()
+        message = f"共有{len(info)}条数据："
+        for user_id, daily_limit in info:
+            message += f"\n{user_id}: {daily_limit}"
         await UniMessage.text(message).finish()
 
-    if option == "proxy":
-        mm.switchProxy()
-        proxy = "开启" if mm.getProxy() else "关闭"
-        await UniMessage.text(f"已{proxy}代理。").finish()
 
-    if option == "d_s":
-        download_queue: list = mm.getDownloadQueue()
-        if len(download_queue) == 0:
-            await UniMessage.text("当前下载队列为空。").finish()
-        else:
-            message = ""
-            for album_id in download_queue:
-                message += f"[{album_id}] "
-            await UniMessage.text(f"当前下载队列共有{len(download_queue)}个任务：{message}").finish()
+@remoteControl_li.handle()
+async def remoteControl_li_handler(
+        user_id: Match[str] = AlconnaMatch("user_id"),
+        limit: Match[str] = AlconnaMatch("limit")):
+    if not (user_id.available and limit.available):
+        await UniMessage.text("参数错误。").finish()
+    user_id = user_id.result
+    daily_limit = limit.result
+    mm.setUserLimit(user_id, daily_limit)
+    await UniMessage.text(f"[{user_id}: {daily_limit}] 已加入限制。").finish()
 
-    if option == "d_c":
-        mm.clearDownloadQueue()
-        await UniMessage.text("下载队列已清空。").finish()
 
-    if option == "u_s":
-        upload_queue: list = mm.getUploadQueue()
-        if len(upload_queue) == 0:
-            await UniMessage.text("当前上传队列为空。").finish()
-        else:
-            message = ""
-            for album_id in upload_queue:
-                message += f"[{album_id}] "
-            await UniMessage.text(f"当前上传队列共有{len(upload_queue)}个任务：{message}").finish()
-
-    if option == "u_c":
-        mm.clearUploadQueue()
-        await UniMessage.text("上传队列已清空。").finish()
-
-    if option == "r_s":
-        tag_list, album_id_list = mm.getRestriction()
-        tags = "Tags："
-        album_ids = "Album_ids："
-        for tag in tag_list:
-            tags += f"\n#{tag[1]}"
-        for album_id in album_id_list:
-            album_ids += f"\n[{album_id[1]}]"
-        await UniMessage.text(tags).send()
-        await UniMessage.text(album_ids).send()
-
-    if option == "r_i" or option == "r_d":
-        if not (arg1.available and arg2.available):
-            await UniMessage.text("参数错误。").finish()
-        kind = arg1.result
-        info = arg2.result
-        if kind != "tag" and kind != "album_id":
-            await UniMessage.text("参数错误。").finish()
-        error = mm.insertRestriction(kind, info) if option == "r_i" else mm.deleteRestriction(kind, info)
-        if error is not None:
-            await UniMessage.text(f"发生错误：{error}").finish()
-        else:
-            await UniMessage.text(f"成功处理条目：{kind} {info}").finish()
-
-    if option == "f_s":
-        date = currentDate()
-        info = mm.getAllFreq(date)
-        message = f"{date2words(date)}的使用记录："
-        for user_id, use_cnt in info:
-            message += f"\n{user_id}: {use_cnt}"
-        await UniMessage.text(message).finish()
-
-    if option == "l_s":
-        if arg1.available:
-            user_id = arg1.result
-            if (daily_limit := mm.getUserLimit(user_id)) is None:
-                await UniMessage.text("暂无数据信息。").finish()
-            else:
-                await UniMessage.text(f"{user_id}: {daily_limit}").finish()
-        else:
-            info = mm.getAllLimit()
-            if len(info) == 0:
-                await UniMessage.text("暂无数据信息。").finish()
-            message = f"共有{len(info)}条数据："
-            for user_id, daily_limit in info:
-                message += f"\n{user_id}: {daily_limit}"
-            await UniMessage.text(message).finish()
-
-    if option == "l_i":
-        if not (arg1.available and arg2.available):
-            await UniMessage.text("参数错误。").finish()
-        user_id = arg1.result
-        daily_limit = arg2.result
-        mm.setUserLimit(user_id, daily_limit)
-        await UniMessage.text(f"[{user_id}: {daily_limit}] 已加入限制。").finish()
-
-    if option == "l_d":
-        if not arg1.available:
-            await UniMessage.text("参数错误。").finish()
-        user_id = arg1.result
-        mm.deleteUserLimit(user_id)
-        await UniMessage.text(f"[{user_id}] 已解除限制。").finish()
+@remoteControl_ld.handle()
+async def remoteControl_li_handler(user_id: Match[str] = AlconnaMatch("user_id")):
+    if not user_id.available:
+        await UniMessage.text("参数错误。").finish()
+    user_id = user_id.result
+    mm.deleteUserLimit(user_id)
+    await UniMessage.text(f"[{user_id}] 已解除限制。").finish()
