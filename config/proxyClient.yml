@@ -1,0 +1,9 @@
+client:
+  impl: html
+  postman:
+    meta_data:
+      cookies:
+        AVS: 4pg98tuvhg4dkkj73g8mqamnh9
+      proxies: 127.0.0.1:707
+  retry_times: 5
+log: true

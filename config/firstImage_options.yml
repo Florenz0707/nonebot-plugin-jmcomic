@@ -1,0 +1,29 @@
+client:
+  impl: api
+  postman:
+    meta_data:
+      proxies: null
+  retry_times: 5
+dir_rule:
+  base_dir: D:\NoneBot\Rift\nonebot_plugin_jmcomic\data\album_cache
+  rule: Bd_Pid
+download:
+  image:
+    suffix: .jpg
+  threading:
+    image: 30
+    photo: 15
+log: true
+plugins:
+  after_init:
+  - kwargs:
+      whitelist:
+      - api
+      - album.before
+      - photo.before
+      - photo.after
+    plugin: log_topic_filter
+  - kwargs:
+      password: 2559815776a
+      username: Florenz
+    plugin: login

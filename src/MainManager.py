@@ -12,6 +12,7 @@ from .Client import Client
 from .Database import Database
 from .Filter import FirstImageFilter
 from .utils import *
+from .PathRelocator import PathRelocator
 
 
 class Status(Enum):
@@ -31,8 +32,11 @@ class FileType(Enum):
     JPG = 1
 
 
+PathRelocator.load()
+
+
 class MainManager:
-    base_dir: Path = Path("D:\\NoneBot\\Rift\\nonebot_plugin_jmcomic")
+    base_dir: Path = PathRelocator.getBaseDir()
     conf_dir: Path = Path.joinpath(base_dir, "config")
     data_dir: Path = Path.joinpath(base_dir, "data")
     album_cache_dir: Path = Path.joinpath(data_dir, "album_cache")
@@ -100,7 +104,6 @@ class MainManager:
         return self.getFilePath(album_id, file_type).exists()
 
     def cleanPics(self):
-        logger.warning("cleanPics called")
         for target in os.listdir(self.album_cache_dir):
             file = os.path.join(self.album_cache_dir, target)
             if os.path.isdir(file):

@@ -1,7 +1,5 @@
 # NONEBOT-PLUGIN-JMCOMIC
 
----
-
 ## 说明
 因为不知道怎么用`localstore`重定向配置文件的路径所以没有发表该插件
 

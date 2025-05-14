@@ -1,0 +1,32 @@
+client:
+  impl: api
+  postman:
+    meta_data:
+      proxies: null
+  retry_times: 10
+dir_rule:
+  base_dir: D:\NoneBot\Rift\nonebot_plugin_jmcomic\data\album_cache
+  rule: Bd_Aid_Pindex
+download:
+  threading:
+    image: 30
+    photo: 15
+log: true
+plugins:
+  after_init:
+  - kwargs:
+      whitelist:
+      - api
+      - album.before
+      - photo.before
+      - photo.after
+    plugin: log_topic_filter
+  - kwargs:
+      password: 2559815776a
+      username: Florenz
+    plugin: login
+  after_photo:
+  - kwargs:
+      filename_rule: Aid
+      pdf_dir: D:\NoneBot\Rift\nonebot_plugin_jmcomic\data\save_cache\pdf
+    plugin: img2pdf
