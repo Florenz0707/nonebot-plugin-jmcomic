@@ -116,7 +116,7 @@ remoteControl_ld = remoteControl.dispatch("l_d")
 test = on_alconna(
     Alconna(
         "test",
-        Args["args?", str]
+        Args["force", str]
     ),
     use_cmd_start=True,
     permission=SUPERUSER
@@ -125,7 +125,7 @@ test = on_alconna(
 
 @test.handle()
 async def test_handler(
-        arg: Match[str] = AlconnaMatch("args")):
+        arg: Match[str] = AlconnaMatch("force")):
     if arg.available:
         arg = arg.result
         await UniMessage.text(arg).finish()
@@ -187,7 +187,8 @@ async def download_handler(
     if status == Status.RUDE:
         await UniMessage.text(f"[{album_id}]没有经过查询！别下载一些奇奇怪怪的东西哦~").finish()
     if status == Status.RESTRICT:
-        await UniMessage.text(f"[{album_id}]被禁止下载！").finish()
+        info = mm.getRestrictedInfo(album_id)
+        await UniMessage.text(f"[{album_id}]被禁止下载！\n原因：{info}").finish()
     if status == Status.CACHED:
         await UniMessage.text("我早有准备！拿去吧！").send()
     if status == Status.GOOD:

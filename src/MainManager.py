@@ -121,10 +121,7 @@ class MainManager:
         info: dict = self.database.getAlbumInfo(album_id)
         if info is None:
             return Status.RUDE
-        restriction = self.database.isAlbumIdRestricted(album_id)
-        if restriction is None:
-            restriction = self.database.isTagsRestricted(info.get("tags"))
-        if restriction is not None and not force:
+        if not force and self.getRestrictedInfo(album_id) is not None:
             return Status.RESTRICT
         if self.isFileCached(album_id, FileType.PDF):
             return Status.CACHED
@@ -186,6 +183,14 @@ class MainManager:
 
     def getRestriction(self) -> tuple[list, list]:
         return self.database.getRestriction()
+
+    def getRestrictedInfo(self, album_id: str) -> str | None:
+        info = self.database.getAlbumInfo(album_id)
+        if (tag := self.database.isTagsRestricted(info.get('tags'))) is not None:
+            return tag
+        if self.database.isAlbumIdRestricted(album_id):
+            return album_id
+        return None
 
     def increaseUserFreq(self, user_id: str, date: str) -> None:
         self.database.increaseUserFreq(user_id, date)
