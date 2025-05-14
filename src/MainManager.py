@@ -34,11 +34,12 @@ class FileType(Enum):
 class MainManager:
     base_dir: Path = Path("D:\\NoneBot\\Rift\\nonebot_plugin_jmcomic")
     conf_dir: Path = Path.joinpath(base_dir, "config")
-    downloads_dir: Path = Path.joinpath(base_dir, "downloads")
-    cache_dir: Path = Path.joinpath(downloads_dir, "cache")
-    pdf_dir: Path = Path.joinpath(cache_dir, "pdf")
-    database_dir: Path = Path.joinpath(cache_dir, "database")
-    pics_dir: Path = Path.joinpath(cache_dir, "pics")
+    data_dir: Path = Path.joinpath(base_dir, "data")
+    album_cache_dir: Path = Path.joinpath(data_dir, "album_cache")
+    save_cache_dir: Path = Path.joinpath(data_dir, "save_cache")
+    database_dir: Path = Path.joinpath(data_dir, "database")
+    pdf_dir: Path = Path.joinpath(save_cache_dir, "pdf")
+    pics_dir: Path = Path.joinpath(save_cache_dir, "pics")
 
     def __init__(self):
         self.pdf_cache_limit = 10 * 1024  # GB to MB
@@ -99,14 +100,13 @@ class MainManager:
         return self.getFilePath(album_id, file_type).exists()
 
     def cleanPics(self):
-        for target in os.listdir(self.downloads_dir):
-            if target == "cache":
-                continue
-            path = os.path.join(self.downloads_dir, target)
-            if os.path.isdir(path):
-                shutil.rmtree(path)
+        logger.warning("cleanPics called")
+        for target in os.listdir(self.album_cache_dir):
+            file = os.path.join(self.album_cache_dir, target)
+            if os.path.isdir(file):
+                shutil.rmtree(file)
             else:
-                os.remove(path)
+                os.remove(file)
 
     def isValidAlbumId(self, album_id: str) -> bool:
         return self.client.isValidAlbumId(album_id)
@@ -248,7 +248,7 @@ class MainManager:
             self.firstImageDownloader.download_photo(album_id)
             jmcomic.JmModuleConfig.CLASS_DOWNLOADER = None
 
-            shutil.move(os.path.join(self.downloads_dir, f"{album_id}\\00001.jpg"),
+            shutil.move(os.path.join(self.album_cache_dir, f"{album_id}\\00001.jpg"),
                         str(self.getFilePath(album_id, FileType.JPG)))
             self.cleanCache(FileType.JPG)
 

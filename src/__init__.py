@@ -195,7 +195,7 @@ async def download_handler(
         mm.increaseUserXPByAlbumID(session.user.id, album_id)
         message = f"[{album_id}]已加入下载！"
         if (info := await mm.getAlbumInfo(album_id)).get('size') != 0:
-            message += f"(预计大小：{info['size']:.2f}MB)"
+            message += f"(预计大小：{info.get('size'):.2f}MB)"
         await UniMessage.text(message).send()
         try:
             await mm.download(album_id)
