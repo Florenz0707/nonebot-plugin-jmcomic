@@ -3,15 +3,15 @@ from pathlib import Path
 
 
 class PathRelocator:
-    _base_dir: Path = Path(r"D:/NoneBot/Rift/nonebot_plugin_jmcomic")
+    _base_dir: Path = Path("")
     _config_dir: Path = _base_dir.joinpath("config")
     _default: Path = _config_dir.joinpath("default_options.yml")
     _firstImage: Path = _config_dir.joinpath("firstImage_options.yml")
     _proxy: Path = _config_dir.joinpath("proxyClient.yml")
-    _login_username: str = "Florenz"
-    _login_pwd: str = "2559815776a"
-    _proxy_host: str = "127.0.0.1:707"
-    _cookies_AVS: str = "4pg98tuvhg4dkkj73g8mqamnh9"
+    _login_username: str = ""
+    _login_pwd: str = ""
+    _proxy_host: str = ""
+    _cookies_AVS: str = ""
 
     @classmethod
     def getBaseDir(cls):
