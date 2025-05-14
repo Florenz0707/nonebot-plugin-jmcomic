@@ -1,9 +1,20 @@
 # NONEBOT-PLUGIN-JMCOMIC
 
-## 说明
+## 前言
 因为不知道怎么用`localstore`重定向配置文件的路径所以没有发表该插件
 
 有功能需求的同学可以看看。
+
+## 使用说明
+1. `git clone https://github.com/Florenz0707/nonebot-plugin-jmcomic.git` 到你的项目根目录下。
+2. 在`pyproject.toml`的`plugins_dir`中添加`"nonebot_plugin_jmcomic"`。
+3. 打开`src`目录下的`PathRelocator.py`。
+4. 将`_base_dir`修改为`nonebot_plugin_jmcomic`的绝对路径。
+5. 将`_login_user_name`修改为你的jm用户名。
+6. 将`_login_pwd`修改为你的jm登录密码。
+7. 将`_proxy_host`修改为你的代理地址。
+8. 将`_cookies_AVS`修改为你的cookies_AVS（详情请查看[JMCOMIC-Crawler-Python：配置文件指南](https://github.com/hect0x7/JMComic-Crawler-Python/blob/master/assets/docs/sources/option_file_syntax.md)）
+9. 相关依赖请自行下载。
 
 ## 项目目录结构
 ```
