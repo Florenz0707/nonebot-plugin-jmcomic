@@ -283,11 +283,12 @@ async def randomId_handler(
             retry = 0
             album_id = randint(left_bound, right_bound)
 
+    album_id = str(album_id)
     if query.available and query.result == "-q":
         info = await mm.getAlbumInfo(album_id, True)
-        await intro_sender(str(album_id), info, session.self_id, True)
+        await intro_sender(album_id, info, session.self_id, True)
     else:
-        await UniMessage.text(str(album_id)).finish()
+        await UniMessage.text(album_id).finish()
 
 
 @queryXP.handle()
@@ -299,6 +300,7 @@ async def queryXP_handler(
         user_id = user_id.result
     else:
         user_id = session.user.id
+
     length = min(length.result, 20)
     info = mm.getUserXP(user_id, length)
     if info is None:

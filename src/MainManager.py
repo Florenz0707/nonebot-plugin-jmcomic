@@ -104,12 +104,9 @@ class MainManager:
         return self.getFilePath(album_id, file_type).exists()
 
     def cleanPics(self):
-        for target in os.listdir(self.album_cache_dir):
-            file = os.path.join(self.album_cache_dir, target)
-            if os.path.isdir(file):
-                shutil.rmtree(file)
-            else:
-                os.remove(file)
+        if len(self.download_queue) != 0:
+            return
+        shutil.rmtree(self.album_cache_dir)
 
     def isValidAlbumId(self, album_id: str) -> bool:
         return self.client.isValidAlbumId(album_id)
@@ -120,7 +117,7 @@ class MainManager:
     def getProxy(self) -> bool:
         return self.client.getProxy()
 
-    def add2queue(self, album_id: str, force=False) -> Status:
+    def add2queue(self, album_id: str, force: bool = False) -> Status:
         info: dict = self.database.getAlbumInfo(album_id)
         if info is None:
             return Status.RUDE
@@ -144,8 +141,7 @@ class MainManager:
         await asyncio.to_thread(self.downloader.download, album_id)
         self.database.setAlbumSize(album_id, self.getFileSize(album_id, FileType.PDF))
         self.download_queue.remove(album_id)
-        if len(self.download_queue) == 0:
-            self.cleanPics()
+        self.cleanPics()
         self.cleanCache(FileType.PDF)
 
     def isDownloading(self, album_id: str) -> bool:
@@ -251,8 +247,16 @@ class MainManager:
             self.firstImageDownloader.download_photo(album_id)
             jmcomic.JmModuleConfig.CLASS_DOWNLOADER = None
 
-            shutil.move(os.path.join(self.album_cache_dir, f"{album_id}\\00001.jpg"),
-                        str(self.getFilePath(album_id, FileType.JPG)))
+            target = None
+            album_dir = os.path.join(self.album_cache_dir, album_id)
+            for file in os.listdir(album_dir):
+                target = os.path.join(album_dir, file)
+                break
+
+            if target is None:
+                return
+            shutil.move(target, str(self.getFilePath(album_id, FileType.JPG)))
+            self.cleanPics()
             self.cleanCache(FileType.JPG)
 
         return info
