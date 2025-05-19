@@ -42,5 +42,5 @@ class Client:
                 tag = tag.strip()
                 if tag != "":
                     tags += f"#{tag} "
-            return getDict((album_detail.album_id, album_detail.title, album_detail.author,
+            return getDict((album_id, album_detail.title, album_detail.author,
                             tags, album_detail.page_count, 0.0))

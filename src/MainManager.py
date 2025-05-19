@@ -50,6 +50,7 @@ class MainManager:
         self.pic_cache_limit = 1 * 1024
         self.download_queue = []
         self.upload_queue = []
+        self.image_queue = []
         self.queue_limit = 5
         self.downloader = Downloader(self.conf_dir)
         self.client = Client(self.conf_dir)
@@ -104,9 +105,8 @@ class MainManager:
         return self.getFilePath(album_id, file_type).exists()
 
     def cleanPics(self):
-        if len(self.download_queue) != 0:
-            return
-        shutil.rmtree(self.album_cache_dir)
+        if len(self.download_queue) == 0 and len(self.image_queue) == 0:
+            shutil.rmtree(self.album_cache_dir)
 
     def isValidAlbumId(self, album_id: str) -> bool:
         return self.client.isValidAlbumId(album_id)
@@ -141,7 +141,6 @@ class MainManager:
         await asyncio.to_thread(self.downloader.download, album_id)
         self.database.setAlbumSize(album_id, self.getFileSize(album_id, FileType.PDF))
         self.download_queue.remove(album_id)
-        self.cleanPics()
         self.cleanCache(FileType.PDF)
 
     def isDownloading(self, album_id: str) -> bool:
@@ -243,6 +242,7 @@ class MainManager:
             self.database.insertAlbumInfo(info)
 
         if with_image and not self.isFileCached(album_id, FileType.JPG):
+            self.image_queue.append(album_id)
             jmcomic.JmModuleConfig.CLASS_DOWNLOADER = FirstImageFilter
             self.firstImageDownloader.download_photo(album_id)
             jmcomic.JmModuleConfig.CLASS_DOWNLOADER = None
@@ -256,6 +256,7 @@ class MainManager:
             if target is None:
                 return
             shutil.move(target, str(self.getFilePath(album_id, FileType.JPG)))
+            self.image_queue.remove(album_id)
             self.cleanPics()
             self.cleanCache(FileType.JPG)
 

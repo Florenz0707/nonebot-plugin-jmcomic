@@ -36,8 +36,7 @@ download = on_alconna(
 abstract = on_alconna(
     Alconna(
         "jm.q",
-        Args["album_id?", str],
-        Args["image?", str]
+        Args["album_id?", str]
     ),
     use_cmd_start=True
 )
@@ -135,7 +134,7 @@ async def test_handler(
 async def help_menu_handler():
     message = """
 1> .jm.d <id> 下载车牌为id的本子
-2> .jm.q <id> [-i] 查询车牌为id的本子信息，使用-i参数可以附带首图
+2> .jm.q <id> 查询车牌为id的本子信息，附带首图
 3> .jm.r [-q] 随机生成可用的车牌号，使用-q参数可以直接查询
 4> .jm.xp [-u QQ] [-l 长度] 查询指定用户的XP，默认查询自己，默认长度为5，最大为20
 ?> .jm.m <cache/proxy/f_s/(d/u)_(s/c)/(r/l)_(s/i/d)>"""
@@ -165,7 +164,7 @@ async def download_handler(
 
     await userFreqCheck(session.user.id)
 
-    album_id = album_id.result
+    album_id = AlbumIdStrip(album_id.result)
     if session.scene.type == SceneType.GROUP:
         group_file_manager = GroupFileManager(bot, session.group.id)
         if await group_file_manager.albumExist(album_id):
@@ -221,8 +220,7 @@ async def download_handler(
 async def intro_sender(
         album_id: str,
         info: dict,
-        uid: str,
-        with_image=False):
+        uid: str,):
     message = f"ID：{info.get('album_id')}\n" \
               f"标题：{info.get('title')}\n" \
               f"作者：{info.get('author')}\n" \
@@ -232,9 +230,7 @@ async def intro_sender(
     if info.get('size') != 0:
         message += f"\n预计大小：{info.get('size'):.2f}MB"
 
-    content = UniMessage.text(message)
-    if with_image:
-        content += UniMessage.image(path=mm.getFilePath(album_id, FileType.JPG))
+    content = UniMessage.text(message).image(path=mm.getFilePath(album_id, FileType.JPG))
     node = CustomNode(uid=uid, name="Rift", content=content)
     try:
         await UniMessage.reference(node).finish()
@@ -242,27 +238,24 @@ async def intro_sender(
         error = str(error)
         if "发送转发消息" in error and "失败" in error:
             await UniMessage.text(f"[{album_id}]发送转发消息失败了！").finish()
-        # logger.warning(error)
 
 
 @abstract.handle()
 async def abstract_handler(
         session: Uninfo,
-        album_id: Match[str] = AlconnaMatch("album_id"),
-        image: Match[str] = AlconnaMatch("image")):
+        album_id: Match[str] = AlconnaMatch("album_id")):
     if not album_id.available:
         await UniMessage.text("看不懂！再试一次吧~").finish()
 
     await userFreqCheck(session.user.id)
 
-    album_id = album_id.result
-    with_image = (image.available and image.result == "-i")
+    album_id = AlbumIdStrip(album_id.result)
     await UniMessage.text("正在查询...").send()
-    info = await mm.getAlbumInfo(album_id, with_image)
+    info = await mm.getAlbumInfo(album_id, True)
     if info is None:
         await UniMessage.text(f"[{album_id}]找不到该编号！你再看看呢").finish()
     else:
-        await intro_sender(album_id, info, session.self_id, with_image)
+        await intro_sender(album_id, info, session.self_id)
 
 
 @randomId.handle()
@@ -286,7 +279,7 @@ async def randomId_handler(
     album_id = str(album_id)
     if query.available and query.result == "-q":
         info = await mm.getAlbumInfo(album_id, True)
-        await intro_sender(album_id, info, session.self_id, True)
+        await intro_sender(album_id, info, session.self_id)
     else:
         await UniMessage.text(album_id).finish()
 

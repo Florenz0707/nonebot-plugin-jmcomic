@@ -36,5 +36,9 @@ def date2words(date: str) -> str:
     return f"{year}年{month}月{day}日"
 
 
+def AlbumIdStrip(album_id: str):
+    return album_id.lstrip('0')
+
+
 if __name__ == "__main__":
     print(date2words(currentDate()))
