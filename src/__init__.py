@@ -36,7 +36,8 @@ download = on_alconna(
 abstract = on_alconna(
     Alconna(
         "jm.q",
-        Args["album_id?", str]
+        Args["album_id?", str],
+        Args["no_image?", str]
     ),
     use_cmd_start=True
 )
@@ -134,7 +135,7 @@ async def test_handler(
 async def help_menu_handler():
     message = """
 1> .jm.d <id> 下载车牌为id的本子
-2> .jm.q <id> 查询车牌为id的本子信息，附带首图
+2> .jm.q <id> [-i] 查询车牌为id的本子信息，使用-i参数可以取消附带首图
 3> .jm.r [-q] 随机生成可用的车牌号，使用-q参数可以直接查询
 4> .jm.xp [-u QQ] [-l 长度] 查询指定用户的XP，默认查询自己，默认长度为5，最大为20
 ?> .jm.m <cache/proxy/f_s/(d/u)_(s/c)/(r/l)_(s/i/d)>"""
@@ -220,7 +221,8 @@ async def download_handler(
 async def intro_sender(
         album_id: str,
         info: dict,
-        uid: str,):
+        uid: str,
+        with_image: bool):
     message = f"ID：{info.get('album_id')}\n" \
               f"标题：{info.get('title')}\n" \
               f"作者：{info.get('author')}\n" \
@@ -230,7 +232,9 @@ async def intro_sender(
     if info.get('size') != 0:
         message += f"\n预计大小：{info.get('size'):.2f}MB"
 
-    content = UniMessage.text(message).image(path=mm.getFilePath(album_id, FileType.JPG))
+    content = UniMessage.text(message)
+    if with_image:
+        content += UniMessage.image(path=mm.getFilePath(album_id, FileType.JPG))
     node = CustomNode(uid=uid, name="Rift", content=content)
     try:
         await UniMessage.reference(node).finish()
@@ -243,19 +247,22 @@ async def intro_sender(
 @abstract.handle()
 async def abstract_handler(
         session: Uninfo,
-        album_id: Match[str] = AlconnaMatch("album_id")):
+        album_id: Match[str] = AlconnaMatch("album_id"),
+        no_image: Match[str] = AlconnaMatch("no_image")):
     if not album_id.available:
         await UniMessage.text("看不懂！再试一次吧~").finish()
+
+    with_image = False if no_image.available and no_image.result == "-i" else True
 
     await userFreqCheck(session.user.id)
 
     album_id = AlbumIdStrip(album_id.result)
     await UniMessage.text("正在查询...").send()
-    info = await mm.getAlbumInfo(album_id, True)
+    info = await mm.getAlbumInfo(album_id, with_image)
     if info is None:
         await UniMessage.text(f"[{album_id}]找不到该编号！你再看看呢").finish()
     else:
-        await intro_sender(album_id, info, session.self_id)
+        await intro_sender(album_id, info, session.self_id, with_image)
 
 
 @randomId.handle()

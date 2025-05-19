@@ -98,7 +98,7 @@ class MainManager:
             file_path = file_list[0]
             cur_size -= Byte2MB(file_path.stat().st_size)
             os.remove(file_path)
-            logger.warning(f"Clean cache file:{file_path}")
+            logger.warning(f"Clean cache file: {file_path}")
             file_list = file_list[1:]
 
     def isFileCached(self, album_id: str, file_type: FileType) -> bool:
