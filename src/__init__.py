@@ -135,7 +135,7 @@ async def test_handler(
 async def help_menu_handler():
     message = """
 1> .jm.d <id> 下载车牌为id的本子
-2> .jm.q <id> [-i] 查询车牌为id的本子信息，使用-i参数可以取消附带首图
+2> .jm.q <id> [-i] 查询车牌为id的本子信息，使用-i参数取消附带首图
 3> .jm.r [-q] 随机生成可用的车牌号，使用-q参数可以直接查询
 4> .jm.xp [-u QQ] [-l 长度] 查询指定用户的XP，默认查询自己，默认长度为5，最大为20
 ?> .jm.m <cache/proxy/f_s/(d/u)_(s/c)/(r/l)_(s/i/d)>"""
@@ -286,7 +286,7 @@ async def randomId_handler(
     album_id = str(album_id)
     if query.available and query.result == "-q":
         info = await mm.getAlbumInfo(album_id, True)
-        await intro_sender(album_id, info, session.self_id)
+        await intro_sender(album_id, info, session.self_id, True)
     else:
         await UniMessage.text(album_id).finish()
 
