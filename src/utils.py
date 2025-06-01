@@ -6,7 +6,7 @@ def Byte2MB(size: int) -> float:
 
 
 def getDict(info: tuple) -> dict:
-    keys = ("album_id", "title", "author", "tags", "page", "size")
+    keys = ("album_id", "title", "author", "tags", "page", "size", "query_cnt", "dl_cnt")
     ret = {key: val for key, val in zip(keys, info)}
     return ret
 

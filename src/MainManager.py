@@ -123,8 +123,6 @@ class MainManager:
             return Status.RUDE
         if not force and self.getRestrictedInfo(album_id) is not None:
             return Status.RESTRICT
-        if self.isFileCached(album_id, FileType.PDF):
-            return Status.CACHED
         if self.isDownloading(album_id):
             return Status.DOWNLOADING
         if len(self.download_queue) >= self.queue_limit:
@@ -133,6 +131,10 @@ class MainManager:
             return Status.UPLOADING
         if not self.isValidAlbumId(album_id):
             return Status.NOTFOUND
+
+        self.database.updateAlbumDC(album_id)
+        if self.isFileCached(album_id, FileType.PDF):
+            return Status.CACHED
 
         self.download_queue.append(album_id)
         return Status.GOOD
@@ -241,6 +243,8 @@ class MainManager:
             info = self.client.getAlbumInfo(album_id)
             self.database.insertAlbumInfo(info)
 
+        self.database.updateAlbumQC(album_id)
+
         if with_image and not self.isFileCached(album_id, FileType.JPG):
             self.image_queue.append(album_id)
             jmcomic.JmModuleConfig.CLASS_DOWNLOADER = FirstImageFilter
@@ -253,9 +257,9 @@ class MainManager:
                 target = os.path.join(album_dir, file)
                 break
 
-            if target is None:
-                return
-            shutil.move(target, str(self.getFilePath(album_id, FileType.JPG)))
+            if target is not None:
+                shutil.move(target, str(self.getFilePath(album_id, FileType.JPG)))
+
             self.image_queue.remove(album_id)
             self.cleanPics()
             self.cleanCache(FileType.JPG)

@@ -226,11 +226,13 @@ async def intro_sender(
     message = f"ID：{info.get('album_id')}\n" \
               f"标题：{info.get('title')}\n" \
               f"作者：{info.get('author')}\n" \
-              f"标签：{info.get('tags')}"
-    if info.get('page') != 0:
-        message += f"\n页数：{info.get('page')}"
+              f"标签：{info.get('tags')}\n" \
+              f"查询次数：{info.get('query_cnt')}\n" \
+              f"下载次数：{info.get('dl_cnt')}"
     if info.get('size') != 0:
         message += f"\n预计大小：{info.get('size'):.2f}MB"
+    else:
+        message += f"\n预计大小：未知"
 
     content = UniMessage.text(message)
     if with_image:

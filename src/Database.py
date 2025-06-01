@@ -29,6 +29,8 @@ class Database:
                 tags        text,
                 page        int     default 0,
                 size        float   default 0.0,
+                query_cnt   int     default 0,
+                dl_cnt      int     default 0,
                 primary key (album_id)
             );
             """
@@ -111,7 +113,7 @@ class Database:
 
     def getAlbumInfo(self, album_id: str) -> None | dict:
         self.cursor.execute(
-            "select album_id, title, author, tags, page, size from album_info where album_id = ?",
+            "select album_id, title, author, tags, page, size, query_cnt, dl_cnt from album_info where album_id = ?",
             (album_id,)
         )
         ret = self.cursor.fetchone()
@@ -121,6 +123,20 @@ class Database:
         self.cursor.execute(
             "update album_info set size = ? where album_id = ?",
             (size, album_id)
+        )
+        self.database.commit()
+
+    def updateAlbumQC(self, album_id: str):
+        self.cursor.execute(
+            "update album_info set query_cnt = query_cnt + 1 where album_id = ?",
+            (album_id, )
+        )
+        self.database.commit()
+
+    def updateAlbumDC(self, album_id: str):
+        self.cursor.execute(
+            "update album_info set dl_cnt = dl_cnt + 1 where album_id = ?",
+            (album_id, )
         )
         self.database.commit()
 
