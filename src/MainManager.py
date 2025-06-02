@@ -95,16 +95,16 @@ class MainManager:
         file_list = sorted(self.getCacheList(file_type), key=lambda x: os.path.getctime(str(x)))
         cur_size = self.getCacheSize(file_type)
         while cur_size > self.getCacheMaxSize(file_type):
-            file_path = file_list[0]
+            file_path: Path = file_list[0]
             cur_size -= Byte2MB(file_path.stat().st_size)
-            os.remove(file_path)
-            logger.warning(f"Clean cache file: {file_path}")
+            os.remove(str(file_path))
+            logger.warning(f"Clean cache file: {str(file_path)}")
             file_list = file_list[1:]
 
     def isFileCached(self, album_id: str, file_type: FileType) -> bool:
         return self.getFilePath(album_id, file_type).exists()
 
-    def cleanPics(self):
+    def cleanPics(self) -> None:
         if len(self.download_queue) == 0 and len(self.image_queue) == 0:
             shutil.rmtree(self.album_cache_dir)
 
@@ -244,6 +244,7 @@ class MainManager:
             self.database.insertAlbumInfo(info)
 
         self.database.updateAlbumQC(album_id)
+        info = self.database.getAlbumInfo(album_id)
 
         if with_image and not self.isFileCached(album_id, FileType.JPG):
             self.image_queue.append(album_id)

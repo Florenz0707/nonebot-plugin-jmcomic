@@ -126,14 +126,14 @@ class Database:
         )
         self.database.commit()
 
-    def updateAlbumQC(self, album_id: str):
+    def updateAlbumQC(self, album_id: str) -> None:
         self.cursor.execute(
             "update album_info set query_cnt = query_cnt + 1 where album_id = ?",
             (album_id, )
         )
         self.database.commit()
 
-    def updateAlbumDC(self, album_id: str):
+    def updateAlbumDC(self, album_id: str) -> None:
         self.cursor.execute(
             "update album_info set dl_cnt = dl_cnt + 1 where album_id = ?",
             (album_id, )
